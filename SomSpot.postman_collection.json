@@ -1,0 +1,2138 @@
+{
+  "info": {
+    "name": "SomSpot API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "SomSpot (taatiko12) backend \u2014 consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "userToken",
+      "value": ""
+    },
+    {
+      "key": "merchantToken",
+      "value": ""
+    },
+    {
+      "key": "creatorToken",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "businessId",
+      "value": ""
+    },
+    {
+      "key": "categoryId",
+      "value": ""
+    },
+    {
+      "key": "offerId",
+      "value": ""
+    },
+    {
+      "key": "claimId",
+      "value": ""
+    },
+    {
+      "key": "campaignId",
+      "value": ""
+    },
+    {
+      "key": "applicationId",
+      "value": ""
+    },
+    {
+      "key": "reviewId",
+      "value": ""
+    },
+    {
+      "key": "payoutId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register (email)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"USER\",\n  \"name\": \"Mohamed Ali\",\n  \"email\": \"user@somspot.so\",\n  \"password\": \"Passw0rd!\",\n  \"confirmPassword\": \"Passw0rd!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Activate account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/activate-account",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "activate-account"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@somspot.so\",\n  \"activationCode\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (email)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@somspot.so\",\n  \"password\": \"Passw0rd!\"\n}"
+            },
+            "description": "Copy data.accessToken into {{userToken}}."
+          }
+        },
+        {
+          "name": "Phone: request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/phone/request-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "phone",
+                "request-otp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+252612345678\",\n  \"role\": \"USER\"\n}"
+            },
+            "description": "Dev returns data.devCode. role can be USER | MERCHANT | CREATOR."
+          }
+        },
+        {
+          "name": "Phone: verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/phone/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "phone",
+                "verify-otp"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+252612345678\",\n  \"code\": \"1234\"\n}"
+            },
+            "description": "Copy data.accessToken to the matching role token."
+          }
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@somspot.so\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Forgot-pass OTP verify",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/forget-pass-otp-verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forget-pass-otp-verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@somspot.so\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@somspot.so\",\n  \"newPassword\": \"NewPassw0rd!\",\n  \"confirmPassword\": \"NewPassw0rd!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"Passw0rd!\",\n  \"newPassword\": \"NewPassw0rd!\",\n  \"confirmPassword\": \"NewPassw0rd!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Category",
+      "item": [
+        {
+          "name": "Create (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Restaurant\",\n  \"icon\": \"restaurant\",\n  \"order\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/category/get-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "get-all"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get one",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/category/get?categoryId={{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "update"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoryId\": \"{{categoryId}}\",\n  \"order\": 2\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/delete?categoryId={{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business",
+      "item": [
+        {
+          "name": "Create (merchant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hilib Macaan Restaurant\",\n  \"category\": \"{{categoryId}}\",\n  \"description\": \"Authentic Somali cuisine.\",\n  \"phone\": \"+252612345678\",\n  \"address\": \"Maka Al Mukarama Road, Mogadishu\",\n  \"lng\": 45.3182,\n  \"lat\": 2.0469,\n  \"openingHours\": [\n    {\n      \"day\": 1,\n      \"open\": \"09:00\",\n      \"close\": \"22:00\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "My businesses (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "update"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"description\": \"Best camel meat in town.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"action\": \"approve\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all (discover)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/business/get-all?category={{categoryId}}&lat=2.0469&lng=45.3182&radiusKm=10&searchTerm=&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "get-all"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categoryId}}"
+                },
+                {
+                  "key": "lat",
+                  "value": "2.0469"
+                },
+                {
+                  "key": "lng",
+                  "value": "45.3182"
+                },
+                {
+                  "key": "radiusKm",
+                  "value": "10"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": ""
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trending",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/business/trending?limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "trending"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/get?businessId={{businessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete (merchant)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/delete?businessId={{businessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Offer",
+      "item": [
+        {
+          "name": "Create (merchant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"title\": \"20% Off Family Platter\",\n  \"discountLabel\": \"20%\",\n  \"description\": \"Roasted goat, rice & salad.\",\n  \"terms\": \"Dine-in only. One claim per customer.\",\n  \"endAt\": \"2026-12-31T23:59:59.000Z\",\n  \"claimLimitPerUser\": 1,\n  \"estimatedValue\": 12\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all (active)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offer/get-all?business={{businessId}}&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "get-all"
+              ],
+              "query": [
+                {
+                  "key": "business",
+                  "value": "{{businessId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get one",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/offer/get?offerId={{offerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "offerId",
+                  "value": "{{offerId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "My offers (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "update"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"offerId\": \"{{offerId}}\",\n  \"discountLabel\": \"25%\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete (merchant)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer/delete?offerId={{offerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "offerId",
+                  "value": "{{offerId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Claim (Wallet)",
+      "item": [
+        {
+          "name": "Claim offer (user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/claim/claim-offer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "claim",
+                "claim-offer"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"offerId\": \"{{offerId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Wallet - active (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/claim/wallet?state=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "claim",
+                "wallet"
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "active"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Wallet - expired (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/claim/wallet?state=expired",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "claim",
+                "wallet"
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "expired"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get claim (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/claim/get?claimId={{claimId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "claim",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "claimId",
+                  "value": "{{claimId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Redeem by code (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/claim/redeem",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "claim",
+                "redeem"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SOM-842\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Saved",
+      "item": [
+        {
+          "name": "Toggle save (user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/saved/toggle",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saved",
+                "toggle"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all saved (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/saved/get-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saved",
+                "get-all"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove (user)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/saved/remove?businessId={{businessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "saved",
+                "remove"
+              ],
+              "query": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search + record (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search?term=Pizza&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "term",
+                  "value": "Pizza"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recent (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search/recent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search",
+                "recent"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Clear recent (user)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/search/recent/clear",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search",
+                "recent",
+                "clear"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Trending searches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search/trending",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search",
+                "trending"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Review",
+      "item": [
+        {
+          "name": "Post review (user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/post-review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "post-review"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"rating\": 5,\n  \"review\": \"Best Somali food in Mogadishu!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all (user/admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/get-all-reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "get-all-reviews"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get business reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/review/get-business-reviews?businessId={{businessId}}&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "get-business-reviews"
+              ],
+              "query": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get one (user)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/get-review?reviewId={{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "get-review"
+              ],
+              "query": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update (user)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/update-review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "update-review"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewId\": \"{{reviewId}}\",\n  \"rating\": 4\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete (user)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/delete-review?reviewId={{reviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "delete-review"
+              ],
+              "query": [
+                {
+                  "key": "reviewId",
+                  "value": "{{reviewId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Merchant",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "dashboard"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/analytics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "analytics"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Onboarding status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/onboarding-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "onboarding-status"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription",
+      "item": [
+        {
+          "name": "Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/subscription/plans",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subscription",
+                "plans"
+              ]
+            }
+          }
+        },
+        {
+          "name": "My subscription (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/subscription/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subscription",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RevenueCat webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/subscription/webhook",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subscription",
+                "webhook"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {\n    \"type\": \"INITIAL_PURCHASE\",\n    \"app_user_id\": \"{{merchantUserId}}\",\n    \"product_id\": \"somspot_pro_monthly\",\n    \"entitlement_id\": \"pro\",\n    \"store\": \"APP_STORE\",\n    \"expiration_at_ms\": 1790000000000\n  }\n}"
+            },
+            "description": "Set Authorization header to REVENUECAT_WEBHOOK_AUTH value in production. app_user_id must equal the merchant's User _id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Campaign (Merchant)",
+      "item": [
+        {
+          "name": "Create (merchant)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"name\": \"BOGO Pizza Promo\",\n  \"about\": \"Promote our BOGO pizza offer.\",\n  \"videoLengthSec\": 30,\n  \"targetCreators\": 5,\n  \"pricePerClaim\": 5,\n  \"offer\": \"{{offerId}}\"\n}"
+            },
+            "description": "Requires an active subscription."
+          }
+        },
+        {
+          "name": "My campaigns (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/my",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "my"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get one (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/get?campaignId={{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "campaignId",
+                  "value": "{{campaignId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update / go live (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "update"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"status\": \"live\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Applications (merchant)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/applications?campaignId={{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "campaignId",
+                  "value": "{{campaignId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Review application (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/review-application",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "review-application"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Review draft (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/review-draft",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "review-draft"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\",\n  \"merchantNote\": \"Looks fantastic \\u2014 approved!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify publication (merchant)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/verify-publication",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "verify-publication"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete (merchant)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/delete?campaignId={{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "delete"
+              ],
+              "query": [
+                {
+                  "key": "campaignId",
+                  "value": "{{campaignId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Creator",
+      "item": [
+        {
+          "name": "Get profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "profile"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "profile"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Food creator in Mogadishu.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Link social",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/link-social",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "link-social"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"platform\": \"tiktok\",\n  \"handle\": \"@ahmedeats\",\n  \"url\": \"https://tiktok.com/@ahmedeats\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Discover campaigns",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/campaigns?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "campaigns"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Apply to campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/apply",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "apply"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"pitch\": \"My foodie audience would love this.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "My tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/tasks?status=",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get task",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/task?applicationId={{applicationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "task"
+              ],
+              "query": [
+                {
+                  "key": "applicationId",
+                  "value": "{{applicationId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit draft",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/submit-draft",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "submit-draft"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"draftVideoUrl\": \"https://cdn.somspot.so/drafts/abc.mp4\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit post URL",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/submit-post",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "submit-post"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"postUrl\": \"https://tiktok.com/@ahmedeats/video/123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "wallet"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Request payout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/payout/request",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "payout",
+                "request"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50,\n  \"method\": \"evc\",\n  \"note\": \"Cash out\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List payouts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{creatorToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/payout/list",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "payout",
+                "list"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Process payout (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/payout/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "payout",
+                "process"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payoutId\": \"{{payoutId}}\",\n  \"action\": \"approve\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

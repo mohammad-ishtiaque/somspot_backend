@@ -68,11 +68,18 @@ const deleteNotification = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const adminBroadcast = catchAsync(async (req: Request, res: Response) => {
+  const result = await NotificationService.adminBroadcast(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Broadcast sent", data: result });
+});
+
 const NotificationController = {
   getNotification,
   getAllNotifications,
   updateAsReadUnread,
   deleteNotification,
+  adminBroadcast,
 };
 
 export { NotificationController };

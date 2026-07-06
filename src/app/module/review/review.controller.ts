@@ -41,6 +41,12 @@ const deleteReview = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Review deleted", data: result });
 });
 
+
+const adminModerate = catchAsync(async (req: Request, res: Response) => {
+  const result = await ReviewService.adminModerate(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Review moderated", data: result });
+});
+
 const ReviewController = {
   postReview,
   getAllReviews,
@@ -48,6 +54,7 @@ const ReviewController = {
   getReview,
   updateReview,
   deleteReview,
+  adminModerate,
 };
 
 export { ReviewController };

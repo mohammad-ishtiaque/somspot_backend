@@ -17,6 +17,8 @@ import MerchantRoutes from "../module/merchant/merchant.routes";
 import SubscriptionRoutes from "../module/subscription/subscription.routes";
 import CampaignRoutes from "../module/campaign/campaign.routes";
 import CreatorRoutes from "../module/creator/creator.routes";
+import PaymentRoutes from "../module/payment/payment.routes";
+import SettingRoutes from "../module/setting/setting.routes";
 
 const router = express.Router();
 
@@ -42,6 +44,9 @@ const moduleRoutes = [
   { path: "/campaign", route: CampaignRoutes },
   // ---- SomSpot: creator ----
   { path: "/creator", route: CreatorRoutes },
+  // ---- SomSpot: admin/platform ----
+  { path: "/payment", route: PaymentRoutes },
+  { path: "/setting", route: SettingRoutes },
 ];
 
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

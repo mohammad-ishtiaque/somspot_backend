@@ -8,6 +8,11 @@ import ApiError from "../../../error/ApiError";
 import unlinkFile from "../../../util/unlinkFile";
 import { Request } from "express";
 import { AuthUserPayload } from "../../../types/auth.types";
+import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
+import validateFields from "../../../util/validateFields";
+import Saved from "../saved/Saved";
+import Claim from "../claim/Claim";
+import Review from "../review/Review";
 
 const updateProfile = async (req: Request) => {
   const { body: data } = req;
@@ -103,10 +108,70 @@ export const deleteMyAccount = async (payload: {
   ]);
 };
 
+
+// ---------------- Admin management ----------------
+
+// Admin "Users Management" list. Optional ?role filter (USER | MERCHANT | CREATOR).
+const adminGetAllUsers = async (query: QueryParams) => {
+  const base: Record<string, unknown> = {};
+  if (query.role) {
+    const auths = await Auth.find({ role: query.role }).select("_id").lean();
+    base.authId = { $in: auths.map((a) => a._id) };
+  }
+
+  const userQuery = new QueryBuilder(
+    User.find(base)
+      .populate([{ path: "authId", select: "role isBlocked isActive email phoneNumber" }])
+      .lean(),
+    query,
+  )
+    .search(["name", "email"])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const [result, meta] = await Promise.all([userQuery.modelQuery, userQuery.countTotal()]);
+  return { meta, result };
+};
+
+// Admin "User Details & Activity".
+const adminGetUser = async (query: { userId?: string }) => {
+  validateFields(query, ["userId"]);
+  const user = await User.findById(query.userId)
+    .populate([{ path: "authId", select: "role isBlocked isActive email phoneNumber createdAt" }])
+    .lean();
+  if (!user) throw new ApiError(status.NOT_FOUND, "User not found");
+
+  const [savedBusinesses, claimsCount, reviewsCount] = await Promise.all([
+    Saved.find({ user: query.userId })
+      .populate([{ path: "business", select: "name logo" }])
+      .lean(),
+    Claim.countDocuments({ user: query.userId }),
+    Review.countDocuments({ user: query.userId }),
+  ]);
+
+  return { user, savedBusinesses, activity: { claimsCount, reviewsCount } };
+};
+
+// Admin block / unblock a user account.
+const adminToggleBlock = async (payload: { userId?: string; isBlocked?: boolean }) => {
+  validateFields(payload, ["userId"]);
+  const user = await User.findById(payload.userId).select("authId").lean();
+  if (!user) throw new ApiError(status.NOT_FOUND, "User not found");
+
+  const isBlocked = payload.isBlocked ?? true;
+  await Auth.updateOne({ _id: user.authId }, { $set: { isBlocked } });
+  return { userId: payload.userId, isBlocked };
+};
+
 const UserService = {
   getProfile,
   deleteMyAccount,
   updateProfile,
+  adminGetAllUsers,
+  adminGetUser,
+  adminToggleBlock,
 };
 
 export { UserService };

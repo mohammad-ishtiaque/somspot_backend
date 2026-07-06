@@ -40,6 +40,12 @@ const deleteOffer = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Offer deleted", data: result });
 });
 
+
+const adminGetAll = catchAsync(async (req: Request, res: Response) => {
+  const result = await OfferService.adminGetAll(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Offers retrieved", data: result });
+});
+
 const OfferController = {
   createOffer,
   getAllOffers,
@@ -47,6 +53,7 @@ const OfferController = {
   getMyOffers,
   updateOffer,
   deleteOffer,
+  adminGetAll,
 };
 
 export { OfferController };

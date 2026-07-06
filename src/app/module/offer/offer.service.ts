@@ -120,6 +120,27 @@ const deleteOffer = async (userData: AuthUserPayload, payload: { offerId?: strin
   return { deleted: true };
 };
 
+
+// Admin "Offers & Promotions" — all offers regardless of status.
+const adminGetAll = async (query: QueryParams) => {
+  const base: Record<string, unknown> = {};
+  if (query.status) base.status = query.status;
+  if (query.business) base.business = query.business;
+
+  const offerQuery = new QueryBuilder(
+    Offer.find(base).populate([{ path: "business", select: "name logo category" }]).lean(),
+    query,
+  )
+    .search(["title"])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const [result, meta] = await Promise.all([offerQuery.modelQuery, offerQuery.countTotal()]);
+  return { meta, result: result.map(withLiveStatus) };
+};
+
 const OfferService = {
   createOffer,
   getAllOffers,
@@ -127,6 +148,7 @@ const OfferService = {
   getMyOffers,
   updateOffer,
   deleteOffer,
+  adminGetAll,
 };
 
 export { OfferService };

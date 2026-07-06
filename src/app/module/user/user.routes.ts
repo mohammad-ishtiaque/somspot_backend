@@ -18,6 +18,10 @@ router
     "/delete-account",
     auth(config.auth_level.user),
     UserController.deleteMyAccount,
-  );
+  )
+  // ---- admin ----
+  .get("/admin/list", auth(config.auth_level.admin), UserController.adminGetAllUsers)
+  .get("/admin/details", auth(config.auth_level.admin), UserController.adminGetUser)
+  .patch("/admin/block", auth(config.auth_level.admin), UserController.adminToggleBlock);
 
 export = router;

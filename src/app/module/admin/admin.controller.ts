@@ -37,10 +37,22 @@ const deleteMyAccount = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const getPlatformAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const result = await AdminService.getPlatformAnalytics();
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Platform analytics retrieved",
+    data: result,
+  });
+});
+
 const AdminController = {
   updateProfile,
   getProfile,
   deleteMyAccount,
+  getPlatformAnalytics,
 };
 
 export { AdminController };

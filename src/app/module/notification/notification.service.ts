@@ -6,6 +6,8 @@ import validateFields from "../../../util/validateFields";
 import { EnumUserRole } from "../../../util/enum";
 import AdminNotification from "./AdminNotification";
 import Notification from "./Notification";
+import Auth from "../auth/Auth";
+import User from "../user/User";
 import { AuthUserPayload } from "../../../types/auth.types";
 import { IAdminNotification } from "./AdminNotification.interface";
 import { INotification } from "./Notification.interface";
@@ -152,11 +154,45 @@ const deleteNotification = async (
   return result;
 };
 
+
+// Admin broadcast to an audience (Figma: Users / Merchants / Influencers / All).
+const adminBroadcast = async (payload: {
+  title?: string;
+  message?: string;
+  audience?: string;
+}) => {
+  validateFields(payload, ["title", "message"]);
+  const audience = (payload.audience || "all").toUpperCase();
+
+  const roleMap: Record<string, string[]> = {
+    ALL: [EnumUserRole.USER, EnumUserRole.MERCHANT, EnumUserRole.CREATOR],
+    USERS: [EnumUserRole.USER],
+    MERCHANTS: [EnumUserRole.MERCHANT],
+    INFLUENCERS: [EnumUserRole.CREATOR],
+    CREATORS: [EnumUserRole.CREATOR],
+  };
+  const roles = roleMap[audience] || roleMap.ALL;
+
+  const auths = await Auth.find({ role: { $in: roles } }).select("_id").lean();
+  const users = await User.find({ authId: { $in: auths.map((a) => a._id) } }).select("_id").lean();
+
+  if (!users.length) return { sent: 0 };
+
+  const docs = users.map((u) => ({
+    toId: u._id,
+    title: payload.title,
+    message: payload.message,
+  }));
+  await Notification.insertMany(docs);
+  return { sent: docs.length, audience };
+};
+
 const NotificationService = {
   getNotification,
   getAllNotifications,
   updateAsReadUnread,
   deleteNotification,
+  adminBroadcast,
 };
 
 export { NotificationService };

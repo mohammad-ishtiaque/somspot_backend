@@ -10,6 +10,13 @@ import Business from "../business/Business";
 import Offer from "../offer/Offer";
 import Claim from "../claim/Claim";
 import Campaign from "../campaign/Campaign";
+import Auth from "../auth/Auth";
+import User from "../user/User";
+import Subscription from "../subscription/Subscription";
+import ApiError from "../../../error/ApiError";
+import validateFields from "../../../util/validateFields";
+import { EnumUserRole } from "../../../util/enum";
+const { status } = require("http-status");
 
 // Merchant home dashboard (Figma: Active Offers, Est. Revenue, Influencer Campaigns).
 const getDashboard = async (userData: AuthUserPayload) => {
@@ -95,6 +102,75 @@ const getOnboardingStatus = async (userData: AuthUserPayload, query: QueryParams
   return { meta, result };
 };
 
-const MerchantService = { getDashboard, getAnalytics, getOnboardingStatus };
+
+// ---------------- Admin: merchant management ----------------
+
+// Admin "Merchants Management" list — merchant accounts + business/pending counts.
+const adminGetMerchants = async (query: QueryParams) => {
+  const auths = await Auth.find({ role: EnumUserRole.MERCHANT }).select("_id").lean();
+  const authIds = auths.map((a) => a._id);
+
+  const merchantQuery = new QueryBuilder(
+    User.find({ authId: { $in: authIds } })
+      .populate([{ path: "authId", select: "isBlocked isActive email phoneNumber" }])
+      .lean(),
+    query,
+  )
+    .search(["name", "email"])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const [merchants, meta] = await Promise.all([merchantQuery.modelQuery, merchantQuery.countTotal()]);
+
+  // Attach quick counts per merchant.
+  const withCounts = await Promise.all(
+    merchants.map(async (m: any) => {
+      const [businessCount, pendingCount] = await Promise.all([
+        Business.countDocuments({ owner: m._id }),
+        Business.countDocuments({ owner: m._id, status: EnumBusinessStatus.PENDING }),
+      ]);
+      return { ...m, businessCount, pendingCount };
+    }),
+  );
+
+  return { meta, result: withCounts };
+};
+
+// Admin "Merchant Details" — profile, businesses, subscription, campaigns.
+const adminGetMerchant = async (query: { merchantId?: string }) => {
+  validateFields(query, ["merchantId"]);
+  const merchant = await User.findById(query.merchantId)
+    .populate([{ path: "authId", select: "isBlocked isActive email phoneNumber createdAt" }])
+    .lean();
+  if (!merchant) throw new ApiError(status.NOT_FOUND, "Merchant not found");
+
+  const [businesses, subscription, campaigns] = await Promise.all([
+    Business.find({ owner: query.merchantId }).lean(),
+    Subscription.findOne({ merchant: query.merchantId }).lean(),
+    Campaign.find({ merchant: query.merchantId }).select("name status videoLengthSec approvedCount").lean(),
+  ]);
+
+  return { merchant, businesses, subscription, campaigns };
+};
+
+const adminToggleBlockMerchant = async (payload: { merchantId?: string; isBlocked?: boolean }) => {
+  validateFields(payload, ["merchantId"]);
+  const merchant = await User.findById(payload.merchantId).select("authId").lean();
+  if (!merchant) throw new ApiError(status.NOT_FOUND, "Merchant not found");
+  const isBlocked = payload.isBlocked ?? true;
+  await Auth.updateOne({ _id: merchant.authId }, { $set: { isBlocked } });
+  return { merchantId: payload.merchantId, isBlocked };
+};
+
+const MerchantService = {
+  getDashboard,
+  getAnalytics,
+  getOnboardingStatus,
+  adminGetMerchants,
+  adminGetMerchant,
+  adminToggleBlockMerchant,
+};
 
 export { MerchantService };

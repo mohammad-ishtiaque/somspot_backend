@@ -180,6 +180,32 @@ const deleteBusiness = async (userData: AuthUserPayload, payload: { businessId?:
   return { deleted: true };
 };
 
+
+// Admin "Business Listings" — all businesses regardless of status.
+const adminGetAll = async (query: QueryParams) => {
+  const base: Record<string, unknown> = {};
+  if (query.status) base.status = query.status;
+  if (query.category) base.category = query.category;
+
+  const businessQuery = new QueryBuilder(
+    Business.find(base)
+      .populate([
+        { path: "category", select: "name slug" },
+        { path: "owner", select: "name email" },
+      ])
+      .lean(),
+    query,
+  )
+    .search(["name"])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+
+  const [result, meta] = await Promise.all([businessQuery.modelQuery, businessQuery.countTotal()]);
+  return { meta, result };
+};
+
 const BusinessService = {
   createBusiness,
   getAllBusinesses,
@@ -189,6 +215,7 @@ const BusinessService = {
   updateBusiness,
   verifyBusiness,
   deleteBusiness,
+  adminGetAll,
 };
 
 export { BusinessService };

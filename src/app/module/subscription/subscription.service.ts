@@ -3,6 +3,8 @@ import ApiError from "../../../error/ApiError";
 import { EnumSubscriptionStatus } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Subscription from "./Subscription";
+import { PaymentService } from "../payment/payment.service";
+import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 
 // Static plan catalogue shown on the merchant "Choose a Plan" screen. Real
 // pricing/products live in RevenueCat; this is display + productId mapping.
@@ -77,9 +79,37 @@ const handleWebhook = async (body: Record<string, any>) => {
     { upsert: true },
   );
 
+  // Persist the transaction for the admin Payments screen (purchases/renewals).
+  if (["INITIAL_PURCHASE", "RENEWAL", "PRODUCT_CHANGE"].includes(event.type)) {
+    await PaymentService.recordFromWebhook(event);
+  }
+
   return { received: true, status: nextStatus };
 };
 
-const SubscriptionService = { getPlans, getMySubscription, hasActiveEntitlement, handleWebhook };
+
+const adminGetAll = async (query: QueryParams) => {
+  const base: Record<string, unknown> = {};
+  if (query.status) base.status = query.status;
+  const subQuery = new QueryBuilder(
+    Subscription.find(base).populate([{ path: "merchant", select: "name email" }]).lean(),
+    query,
+  )
+    .search([])
+    .filter()
+    .sort()
+    .paginate()
+    .fields();
+  const [result, meta] = await Promise.all([subQuery.modelQuery, subQuery.countTotal()]);
+  return { meta, result };
+};
+
+const SubscriptionService = {
+  getPlans,
+  getMySubscription,
+  hasActiveEntitlement,
+  handleWebhook,
+  adminGetAll,
+};
 
 export { SubscriptionService };

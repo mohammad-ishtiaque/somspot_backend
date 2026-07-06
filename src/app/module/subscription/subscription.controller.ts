@@ -4,6 +4,7 @@ import config from "../../../config";
 import { SubscriptionService } from "./subscription.service";
 import sendResponse from "../../../util/sendResponse";
 import catchAsync from "../../../util/catchAsync";
+import { QueryParams } from "../../../builder/queryBuilder";
 import ApiError from "../../../error/ApiError";
 
 const getPlans = catchAsync(async (_req: Request, res: Response) => {
@@ -26,6 +27,17 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Webhook processed", data: result });
 });
 
-const SubscriptionController = { getPlans, getMySubscription, webhook };
+
+const adminGetAll = catchAsync(async (req: Request, res: Response) => {
+  const result = await SubscriptionService.adminGetAll(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Subscriptions retrieved", data: result });
+});
+
+const SubscriptionController = {
+  getPlans,
+  getMySubscription,
+  webhook,
+  adminGetAll,
+};
 
 export { SubscriptionController };

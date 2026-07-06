@@ -11,6 +11,7 @@ router
   .get("/get-business-reviews", ReviewController.getBusinessReviews)
   .get("/get-review", auth(config.auth_level.user), ReviewController.getReview)
   .patch("/update-review", auth(config.auth_level.user), ReviewController.updateReview)
-  .delete("/delete-review", auth(config.auth_level.user), ReviewController.deleteReview);
+  .delete("/delete-review", auth(config.auth_level.user), ReviewController.deleteReview)
+  .patch("/admin/moderate", auth(config.auth_level.admin), ReviewController.adminModerate);
 
 export = router;

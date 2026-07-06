@@ -25,6 +25,11 @@ router
     "/delete-notification",
     auth(config.auth_level.user),
     NotificationController.deleteNotification,
+  )
+  .post(
+    "/admin/broadcast",
+    auth(config.auth_level.admin),
+    NotificationController.adminBroadcast,
   );
 
 export = router;

@@ -73,7 +73,7 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
 const getBusinessReviews = async (query: QueryParams) => {
   validateFields(query, ["businessId"]);
   const reviewQuery = new QueryBuilder(
-    Review.find({ business: query.businessId })
+    Review.find({ business: query.businessId, moderationStatus: "visible" })
       .populate([{ path: "user", select: "name profile_image" }])
       .lean(),
     query,
@@ -125,6 +125,30 @@ const deleteReview = async (userData: AuthUserPayload, payload: { reviewId?: str
   return { deleted: true };
 };
 
+
+// Admin review moderation (Figma: Approve / Hide / Delete).
+const adminModerate = async (payload: { reviewId?: string; action?: string }) => {
+  validateFields(payload, ["reviewId", "action"]);
+  const review = await Review.findById(payload.reviewId);
+  if (!review) throw new ApiError(status.NOT_FOUND, "Review not found");
+
+  if (payload.action === "approve") {
+    review.moderationStatus = "visible";
+    await review.save();
+  } else if (payload.action === "hide") {
+    review.moderationStatus = "hidden";
+    await review.save();
+  } else if (payload.action === "delete") {
+    const businessId = review.business;
+    await review.deleteOne();
+    await recomputeBusinessRating(businessId);
+    return { deleted: true };
+  } else {
+    throw new ApiError(status.BAD_REQUEST, "action must be approve, hide or delete");
+  }
+  return review;
+};
+
 const ReviewService = {
   postReview,
   getAllReviews,
@@ -132,6 +156,7 @@ const ReviewService = {
   getReview,
   updateReview,
   deleteReview,
+  adminModerate,
 };
 
 export { ReviewService };

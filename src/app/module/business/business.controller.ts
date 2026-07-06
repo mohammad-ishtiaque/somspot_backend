@@ -90,6 +90,12 @@ const deleteBusiness = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const adminGetAll = catchAsync(async (req: Request, res: Response) => {
+  const result = await BusinessService.adminGetAll(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Businesses retrieved", data: result });
+});
+
 const BusinessController = {
   createBusiness,
   getAllBusinesses,
@@ -99,6 +105,7 @@ const BusinessController = {
   updateBusiness,
   verifyBusiness,
   deleteBusiness,
+  adminGetAll,
 };
 
 export { BusinessController };

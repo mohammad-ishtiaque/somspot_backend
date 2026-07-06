@@ -26,6 +26,29 @@ const getOnboardingStatus = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Onboarding status retrieved", data: result });
 });
 
-const MerchantController = { getDashboard, getAnalytics, getOnboardingStatus };
+
+const adminGetMerchants = catchAsync(async (req: Request, res: Response) => {
+  const result = await MerchantService.adminGetMerchants(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Merchants retrieved", data: result });
+});
+
+const adminGetMerchant = catchAsync(async (req: Request, res: Response) => {
+  const result = await MerchantService.adminGetMerchant(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Merchant retrieved", data: result });
+});
+
+const adminToggleBlockMerchant = catchAsync(async (req: Request, res: Response) => {
+  const result = await MerchantService.adminToggleBlockMerchant(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Merchant status updated", data: result });
+});
+
+const MerchantController = {
+  getDashboard,
+  getAnalytics,
+  getOnboardingStatus,
+  adminGetMerchants,
+  adminGetMerchant,
+  adminToggleBlockMerchant,
+};
 
 export { MerchantController };

@@ -13,6 +13,7 @@ router
   .delete("/delete", auth(config.auth_level.merchant), BusinessController.deleteBusiness)
   // admin
   .patch("/verify", auth(config.auth_level.admin), BusinessController.verifyBusiness)
+  .get("/admin/list", auth(config.auth_level.admin), BusinessController.adminGetAll)
   // public / consumer (auth optional so owners can preview unapproved)
   .get("/get-all", BusinessController.getAllBusinesses)
   .get("/trending", BusinessController.getTrending)

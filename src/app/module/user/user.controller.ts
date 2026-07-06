@@ -1,5 +1,6 @@
 const { default: status } = require("http-status");
 import { UserService } from "./user.service";
+import { QueryParams } from "../../../builder/queryBuilder";
 import sendResponse from "../../../util/sendResponse";
 import catchAsync from "../../../util/catchAsync";
 import { Request, Response } from "express";
@@ -38,10 +39,29 @@ const deleteMyAccount = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const adminGetAllUsers = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.adminGetAllUsers(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Users retrieved", data: result });
+});
+
+const adminGetUser = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.adminGetUser(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "User retrieved", data: result });
+});
+
+const adminToggleBlock = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.adminToggleBlock(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "User status updated", data: result });
+});
+
 const UserController = {
   deleteMyAccount,
   getProfile,
   updateProfile,
+  adminGetAllUsers,
+  adminGetUser,
+  adminToggleBlock,
 };
 
 export { UserController };

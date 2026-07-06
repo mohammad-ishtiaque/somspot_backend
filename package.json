@@ -22,7 +22,7 @@
     "src/**/*.{js,ts}": "eslint --fix"
   },
   "keywords": [],
-  "author": "thakur-saad",
+  "author": "arif-ishtiaq",
   "license": "ISC",
   "description": "top of everest",
   "dependencies": {
@@ -36,6 +36,7 @@
     "ejs": "^5.0.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
+    "helmet": "^8.2.0",
     "http-status": "^2.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.1.0",

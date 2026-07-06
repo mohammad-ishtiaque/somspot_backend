@@ -8,6 +8,11 @@ const router = express.Router();
 
 router
   .get("/profile", auth(config.auth_level.admin), AdminController.getProfile)
+  .get(
+    "/analytics",
+    auth(config.auth_level.admin),
+    AdminController.getPlatformAnalytics,
+  )
   .patch(
     "/edit-profile",
     auth(config.auth_level.admin),

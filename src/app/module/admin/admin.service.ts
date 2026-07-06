@@ -14,6 +14,9 @@ import Campaign from "../campaign/Campaign";
 import Review from "../review/Review";
 import Payout from "../creator/Payout";
 import Earning from "../creator/Earning";
+import Payment from "../payment/Payment";
+import Subscription from "../subscription/Subscription";
+import { EnumSubscriptionStatus } from "../../../util/enum";
 import CampaignApplication from "../creator/CampaignApplication";
 import { EnumTaskStatus } from "../../../util/enum";
 import {
@@ -165,7 +168,8 @@ const getPlatformAnalytics = async () => {
       .lean(),
   ]);
 
-  const [categoryDistribution, publishedTasks, commissionAgg, merchantActivity] =
+  const monthStart = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000);
+  const [categoryDistribution, publishedTasks, commissionAgg, merchantActivity, usersTrend, revenueTrend, activeSubscriptions, recentActivity] =
     await Promise.all([
       Business.aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
@@ -182,6 +186,27 @@ const getPlatformAnalytics = async () => {
         { $sort: { _id: 1 } },
         { $project: { _id: 0, date: "$_id", count: 1 } },
       ]),
+      User.aggregate([
+        { $match: { createdAt: { $gte: monthStart } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, month: "$_id", count: 1 } },
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: monthStart } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, total: { $sum: "$price" } } },
+        { $sort: { _id: 1 } },
+        { $project: { _id: 0, month: "$_id", total: 1 } },
+      ]),
+      Subscription.countDocuments({ status: EnumSubscriptionStatus.ACTIVE }),
+      Claim.find({})
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .populate([
+          { path: "offer", select: "title" },
+          { path: "user", select: "name" },
+        ])
+        .lean(),
     ]);
 
   return {
@@ -201,6 +226,10 @@ const getPlatformAnalytics = async () => {
       totalCommissions: commissionAgg[0]?.total || 0,
     },
     merchantActivity,
+    usersTrend,
+    revenueTrend,
+    activeSubscriptions,
+    recentActivity,
   };
 };
 

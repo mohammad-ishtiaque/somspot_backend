@@ -16,7 +16,8 @@
     "prettier:check": "prettier --check \"**/*.{js,ts,json,md}\"",
     "prettier:fix": "prettier --write .",
     "lint-prettier": "yarn lint:check && yarn prettier:check",
-    "make:file": "tsx src/util/generateModule.ts"
+    "make:file": "tsx src/util/generateModule.ts",
+    "seed:admin": "tsx src/seedAdmin.ts"
   },
   "lint-staged": {
     "src/**/*.{js,ts}": "eslint --fix"

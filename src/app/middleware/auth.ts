@@ -22,7 +22,10 @@ const auth =
         throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid token format");
       }
 
-      const token = tokenWithBearer.split(" ")[1].trim();
+      const token = tokenWithBearer.split(" ")[1]?.trim();
+      if (!token) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid token format");
+      }
 
       const verifyUser = jwtHelpers.verifyToken<AuthUserPayload>(
         token,

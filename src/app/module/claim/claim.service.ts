@@ -1,4 +1,5 @@
 const { status } = require("http-status");
+import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
@@ -7,9 +8,6 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Claim from "./Claim";
 import Offer from "../offer/Offer";
 import Business from "../business/Business";
-
-const isPrivileged = (role: string) =>
-  role === EnumUserRole.ADMIN || role === EnumUserRole.SUPER_ADMIN;
 
 // Generate a short human-readable claim code as shown in the UI (e.g. SOM-842).
 const generateClaimCode = async (): Promise<string> => {
@@ -62,20 +60,13 @@ const getWallet = async (userData: AuthUserPayload, query: QueryParams) => {
       $or: [{ status: EnumClaimStatus.EXPIRED }, { expiresAt: { $lte: now } }],
     });
 
-  const claimQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Claim.find(base).populate([
       { path: "offer", select: "title discountLabel endAt" },
       { path: "business", select: "name logo address" },
     ]).lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([claimQuery.modelQuery, claimQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

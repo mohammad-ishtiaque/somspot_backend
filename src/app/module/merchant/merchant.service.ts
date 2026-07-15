@@ -86,19 +86,12 @@ const getAnalytics = async (userData: AuthUserPayload) => {
 
 // Approval Progress screen: the merchant's businesses + verification state.
 const getOnboardingStatus = async (userData: AuthUserPayload, query: QueryParams) => {
-  const businessQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Business.find({ owner: userData.userId })
       .select("name status rejectionReason logo createdAt")
       .lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([businessQuery.modelQuery, businessQuery.countTotal()]);
+  ).execute(["name"]);
   return { meta, result };
 };
 
@@ -110,19 +103,12 @@ const adminGetMerchants = async (query: QueryParams) => {
   const auths = await Auth.find({ role: EnumUserRole.MERCHANT }).select("_id").lean();
   const authIds = auths.map((a) => a._id);
 
-  const merchantQuery = new QueryBuilder(
+  const { meta, result: merchants } = await new QueryBuilder(
     User.find({ authId: { $in: authIds } })
       .populate([{ path: "authId", select: "isBlocked isActive email phoneNumber" }])
       .lean(),
     query,
-  )
-    .search(["name", "email"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [merchants, meta] = await Promise.all([merchantQuery.modelQuery, merchantQuery.countTotal()]);
+  ).execute(["name", "email"]);
 
   // Attach quick counts per merchant.
   const withCounts = await Promise.all(

@@ -91,16 +91,10 @@ const handleWebhook = async (body: Record<string, any>) => {
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.status) base.status = query.status;
-  const subQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Subscription.find(base).populate([{ path: "merchant", select: "name email" }]).lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-  const [result, meta] = await Promise.all([subQuery.modelQuery, subQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

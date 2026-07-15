@@ -1,4 +1,5 @@
 const { status } = require("http-status");
+import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
@@ -6,9 +7,6 @@ import { EnumOfferStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Offer from "./Offer";
 import Business from "../business/Business";
-
-const isPrivileged = (role: string) =>
-  role === EnumUserRole.ADMIN || role === EnumUserRole.SUPER_ADMIN;
 
 // Derived status: an offer past its endAt is expired regardless of stored value.
 const withLiveStatus = <T extends { endAt: Date; status: string }>(offer: T): T => {
@@ -58,17 +56,10 @@ const getAllOffers = async (query: QueryParams) => {
     base.business = { $in: businessFilterIds };
   }
 
-  const offerQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Offer.find(base).populate([{ path: "business", select: "name logo category address ratingAvg" }]).lean(),
     query,
-  )
-    .search(["title"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([offerQuery.modelQuery, offerQuery.countTotal()]);
+  ).execute(["title"]);
   return { meta, result: result.map(withLiveStatus) };
 };
 
@@ -85,17 +76,10 @@ const getMyOffers = async (userData: AuthUserPayload, query: QueryParams) => {
   const myBusinesses = await Business.find({ owner: userData.userId }).select("_id").lean();
   const ids = myBusinesses.map((b) => b._id);
 
-  const offerQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Offer.find({ business: { $in: ids } }).populate([{ path: "business", select: "name logo" }]).lean(),
     query,
-  )
-    .search(["title"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([offerQuery.modelQuery, offerQuery.countTotal()]);
+  ).execute(["title"]);
   return { meta, result: result.map(withLiveStatus) };
 };
 
@@ -127,17 +111,10 @@ const adminGetAll = async (query: QueryParams) => {
   if (query.status) base.status = query.status;
   if (query.business) base.business = query.business;
 
-  const offerQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Offer.find(base).populate([{ path: "business", select: "name logo category" }]).lean(),
     query,
-  )
-    .search(["title"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([offerQuery.modelQuery, offerQuery.countTotal()]);
+  ).execute(["title"]);
   return { meta, result: result.map(withLiveStatus) };
 };
 

@@ -24,20 +24,10 @@ const createCategory = async (payload: Record<string, any>) => {
 };
 
 const getAllCategories = async (query: QueryParams) => {
-  const categoryQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Category.find({ isActive: true }).lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([
-    categoryQuery.modelQuery,
-    categoryQuery.countTotal(),
-  ]);
+  ).execute(["name"]);
   return { meta, result };
 };
 

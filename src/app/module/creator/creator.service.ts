@@ -63,7 +63,7 @@ const linkSocial = async (
 // ---------------- Campaign marketplace ----------------
 
 const getMarketplace = async (query: QueryParams) => {
-  const campaignQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Campaign.find({ status: EnumCampaignStatus.LIVE })
       .populate([
         { path: "business", select: "name logo address" },
@@ -71,14 +71,7 @@ const getMarketplace = async (query: QueryParams) => {
       ])
       .lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([campaignQuery.modelQuery, campaignQuery.countTotal()]);
+  ).execute(["name"]);
   return { meta, result };
 };
 
@@ -111,19 +104,12 @@ const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
   const base: Record<string, unknown> = { creator: userData.userId };
   if (query.status) base.status = query.status;
 
-  const taskQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     CampaignApplication.find(base)
       .populate([{ path: "campaign", select: "name videoLengthSec pricePerClaim business" }])
       .lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([taskQuery.modelQuery, taskQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 
@@ -233,17 +219,10 @@ const requestPayout = async (
 };
 
 const getPayouts = async (userData: AuthUserPayload, query: QueryParams) => {
-  const payoutQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Payout.find({ creator: userData.userId }).lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([payoutQuery.modelQuery, payoutQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

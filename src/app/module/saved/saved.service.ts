@@ -23,19 +23,12 @@ const toggleSaved = async (userData: AuthUserPayload, payload: { businessId?: st
 };
 
 const getAllSaved = async (userData: AuthUserPayload, query: QueryParams) => {
-  const savedQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Saved.find({ user: userData.userId })
       .populate([{ path: "business", select: "name logo category address ratingAvg ratingCount" }])
       .lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([savedQuery.modelQuery, savedQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

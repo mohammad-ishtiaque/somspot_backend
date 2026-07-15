@@ -1,4 +1,5 @@
 const { status } = require("http-status");
+import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
@@ -9,9 +10,6 @@ import Business from "../business/Business";
 import CampaignApplication from "../creator/CampaignApplication";
 import Earning from "../creator/Earning";
 import { SubscriptionService } from "../subscription/subscription.service";
-
-const isPrivileged = (role: string) =>
-  role === EnumUserRole.ADMIN || role === EnumUserRole.SUPER_ADMIN;
 
 const assertOwnsCampaign = async (userData: AuthUserPayload, campaignId: string) => {
   const campaign = await Campaign.findById(campaignId);
@@ -47,19 +45,12 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
 };
 
 const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => {
-  const campaignQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Campaign.find({ merchant: userData.userId })
       .populate([{ path: "business", select: "name logo" }])
       .lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([campaignQuery.modelQuery, campaignQuery.countTotal()]);
+  ).execute(["name"]);
   return { meta, result };
 };
 
@@ -96,19 +87,12 @@ const getApplications = async (userData: AuthUserPayload, query: QueryParams) =>
   validateFields(query, ["campaignId"]);
   await assertOwnsCampaign(userData, String(query.campaignId));
 
-  const appQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     CampaignApplication.find({ campaign: query.campaignId })
       .populate([{ path: "creator", select: "name profile_image" }])
       .lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([appQuery.modelQuery, appQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

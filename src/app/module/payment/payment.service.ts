@@ -32,17 +32,10 @@ const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.merchant) base.merchant = query.merchant;
 
-  const paymentQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Payment.find(base).populate([{ path: "merchant", select: "name email" }]).lean(),
     query,
-  )
-    .search(["transactionId"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([paymentQuery.modelQuery, paymentQuery.countTotal()]);
+  ).execute(["transactionId"]);
   return { meta, result };
 };
 

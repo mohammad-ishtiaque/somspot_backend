@@ -105,6 +105,20 @@ class QueryBuilder<T> {
     return this;
   }
 
+  // Runs the full list pipeline (search → filter → sort → paginate → fields)
+  // and returns the paginated result + meta in one call. Generalizes the
+  // boilerplate that every list endpoint used to repeat.
+  async execute(
+    searchableFields: string[] = [],
+  ): Promise<{ meta: PaginationMeta; result: T[] }> {
+    this.search(searchableFields).filter().sort().paginate().fields();
+    const [result, meta] = await Promise.all([
+      this.modelQuery,
+      this.countTotal(),
+    ]);
+    return { meta, result };
+  }
+
   async countTotal(): Promise<PaginationMeta> {
     const totalQueries = this.modelQuery.getFilter();
 

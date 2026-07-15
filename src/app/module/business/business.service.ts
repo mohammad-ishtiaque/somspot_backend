@@ -1,13 +1,11 @@
 const { status } = require("http-status");
+import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
-
-const isPrivileged = (role: string) =>
-  role === EnumUserRole.ADMIN || role === EnumUserRole.SUPER_ADMIN;
 
 // Compute a simple "open now / closes at" hint from stored opening hours.
 const computeOpenStatus = (hours: { day: number; open: string; close: string; closed?: boolean }[]) => {
@@ -64,20 +62,10 @@ const getAllBusinesses = async (query: QueryParams) => {
     };
   }
 
-  const businessQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([
-    businessQuery.modelQuery,
-    businessQuery.countTotal(),
-  ]);
+  ).execute(["name"]);
   return { meta, result };
 };
 
@@ -110,20 +98,10 @@ const getBusiness = async (userData: AuthUserPayload | undefined, query: { busin
 };
 
 const getMyBusinesses = async (userData: AuthUserPayload, query: QueryParams) => {
-  const businessQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Business.find({ owner: userData.userId }).lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([
-    businessQuery.modelQuery,
-    businessQuery.countTotal(),
-  ]);
+  ).execute(["name"]);
   return { meta, result };
 };
 
@@ -187,7 +165,7 @@ const adminGetAll = async (query: QueryParams) => {
   if (query.status) base.status = query.status;
   if (query.category) base.category = query.category;
 
-  const businessQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Business.find(base)
       .populate([
         { path: "category", select: "name slug" },
@@ -195,14 +173,7 @@ const adminGetAll = async (query: QueryParams) => {
       ])
       .lean(),
     query,
-  )
-    .search(["name"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([businessQuery.modelQuery, businessQuery.countTotal()]);
+  ).execute(["name"]);
   return { meta, result };
 };
 

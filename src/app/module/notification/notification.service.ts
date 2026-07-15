@@ -49,20 +49,10 @@ const getAllNotifications = async (
   const { role, userId } = userData;
 
   if (role === EnumUserRole.ADMIN) {
-    const notificationQuery = new QueryBuilder<IAdminNotification>(
-      AdminNotification.find().lean(),
-      query,
-    )
-      .search([])
-      .filter()
-      .sort()
-      .paginate()
-      .fields();
-
-    const [notifications, meta] = await Promise.all([
-      notificationQuery.modelQuery,
-      notificationQuery.countTotal(),
-    ]);
+    const { meta, result: notifications } = await new QueryBuilder(
+    AdminNotification.find().lean(),
+    query,
+  ).execute([]);
 
     if (!notifications) {
       throw new ApiError(status.NOT_FOUND, "Notifications not found");
@@ -70,20 +60,10 @@ const getAllNotifications = async (
 
     return { meta, notifications };
   } else {
-    const notificationQuery = new QueryBuilder<INotification>(
-      Notification.find({ toId: userId }).lean(),
-      query,
-    )
-      .search([])
-      .filter()
-      .sort()
-      .paginate()
-      .fields();
-
-    const [notifications, meta] = await Promise.all([
-      notificationQuery.modelQuery,
-      notificationQuery.countTotal(),
-    ]);
+    const { meta, result: notifications } = await new QueryBuilder(
+    Notification.find({ toId: userId }).lean(),
+    query,
+  ).execute([]);
 
     if (!notifications) {
       throw new ApiError(status.NOT_FOUND, "Notifications not found");

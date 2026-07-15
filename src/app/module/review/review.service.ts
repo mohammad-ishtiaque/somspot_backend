@@ -1,4 +1,5 @@
 const { status } = require("http-status");
+import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
@@ -6,9 +7,6 @@ import { EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Review from "./Review";
 import Business from "../business/Business";
-
-const isPrivileged = (role: string) =>
-  role === EnumUserRole.ADMIN || role === EnumUserRole.SUPER_ADMIN;
 
 // Recompute a business's rating average + count from its reviews.
 const recomputeBusinessRating = async (businessId: unknown) => {
@@ -50,7 +48,7 @@ const postReview = async (userData: AuthUserPayload, payload: Record<string, any
 const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
   const queryObj = isPrivileged(userData.role) ? {} : { user: userData.userId };
 
-  const reviewQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Review.find(queryObj)
       .populate([
         { path: "user", select: "name profile_image" },
@@ -58,33 +56,19 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
       ])
       .lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([reviewQuery.modelQuery, reviewQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 
 // Public: all reviews for one business (business detail "Reviews" tab).
 const getBusinessReviews = async (query: QueryParams) => {
   validateFields(query, ["businessId"]);
-  const reviewQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     Review.find({ business: query.businessId, moderationStatus: "visible" })
       .populate([{ path: "user", select: "name profile_image" }])
       .lean(),
     query,
-  )
-    .search([])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([reviewQuery.modelQuery, reviewQuery.countTotal()]);
+  ).execute([]);
   return { meta, result };
 };
 

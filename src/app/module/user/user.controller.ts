@@ -55,6 +55,13 @@ const adminToggleBlock = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "User status updated", data: result });
 });
 
+
+const rateApp = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
+  const result = await UserService.rateApp(req.user, req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Thanks for rating SomSpot", data: result });
+});
+
 const UserController = {
   deleteMyAccount,
   getProfile,
@@ -62,6 +69,7 @@ const UserController = {
   adminGetAllUsers,
   adminGetUser,
   adminToggleBlock,
+  rateApp,
 };
 
 export { UserController };

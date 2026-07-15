@@ -13,6 +13,7 @@ import validateFields from "../../../util/validateFields";
 import Saved from "../saved/Saved";
 import Claim from "../claim/Claim";
 import Review from "../review/Review";
+import AppRating from "./AppRating";
 
 const updateProfile = async (req: Request) => {
   const { body: data } = req;
@@ -158,6 +159,22 @@ const adminToggleBlock = async (payload: { userId?: string; isBlocked?: boolean 
   return { userId: payload.userId, isBlocked };
 };
 
+
+// "Rate SomSpot" — upsert the current user's app rating.
+const rateApp = async (userData: AuthUserPayload, payload: { rating?: number; comment?: string }) => {
+  validateFields(payload, ["rating"]);
+  const rating = Number(payload.rating);
+  if (rating < 1 || rating > 5)
+    throw new ApiError(status.BAD_REQUEST, "Rating must be between 1 and 5");
+
+  const result = await AppRating.findOneAndUpdate(
+    { user: userData.userId },
+    { $set: { rating, comment: payload.comment } },
+    { upsert: true, new: true, runValidators: true },
+  );
+  return result;
+};
+
 const UserService = {
   getProfile,
   deleteMyAccount,
@@ -165,6 +182,7 @@ const UserService = {
   adminGetAllUsers,
   adminGetUser,
   adminToggleBlock,
+  rateApp,
 };
 
 export { UserService };

@@ -14,6 +14,7 @@ router
     uploadFile(),
     UserController.updateProfile,
   )
+  .post("/rate-app", auth(config.auth_level.user), UserController.rateApp)
   .delete(
     "/delete-account",
     auth(config.auth_level.user),

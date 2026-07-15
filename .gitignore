@@ -8,3 +8,5 @@ coverage/
 entrypoint.sh
 yarn.lock
 package-lock.json
+.claude
+docs/

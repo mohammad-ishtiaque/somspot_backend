@@ -119,19 +119,12 @@ const adminGetAllUsers = async (query: QueryParams) => {
     base.authId = { $in: auths.map((a) => a._id) };
   }
 
-  const userQuery = new QueryBuilder(
+  const { meta, result } = await new QueryBuilder(
     User.find(base)
       .populate([{ path: "authId", select: "role isBlocked isActive email phoneNumber" }])
       .lean(),
     query,
-  )
-    .search(["name", "email"])
-    .filter()
-    .sort()
-    .paginate()
-    .fields();
-
-  const [result, meta] = await Promise.all([userQuery.modelQuery, userQuery.countTotal()]);
+  ).execute(["name", "email"]);
   return { meta, result };
 };
 

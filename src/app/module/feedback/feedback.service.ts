@@ -13,6 +13,7 @@ interface UserData {
 }
 
 interface FeedbackPayload {
+  subject?: string;
   feedback: string;
   name?: string;
   email?: string;
@@ -24,7 +25,7 @@ const postFeedback = async (
   userData: UserData | null,
   payload: FeedbackPayload,
 ) => {
-  validateFields(payload, ["feedback"]);
+  validateFields(payload, ["subject", "feedback"]);
 
   let user: { name: string; email: string } | null = null;
 
@@ -45,6 +46,7 @@ const postFeedback = async (
       name: payload.name,
       email: payload.email,
     }),
+    subject: payload.subject,
     feedback: payload.feedback,
   };
 
@@ -118,7 +120,7 @@ const updateFeedbackWithReply = async (
 
   const feedback = await Feedback.findByIdAndUpdate(
     payload.feedbackId,
-    { reply: payload.reply },
+    { reply: payload.reply, status: "replied" },
     { returnDocument: "after", runValidators: true },
   );
 

@@ -2,7 +2,7 @@
   "info": {
     "name": "SomSpot API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "SomSpot (taatiko12) backend \u2014 consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in."
+    "description": "SomSpot (taatiko12) backend \u2014 consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in.\n\nLocalization: send header `x-language: en|so|ar` on any request to get localized success/error messages. The user's language is also stored at signup (register / phone request-otp `language` field) and used for outgoing emails."
   },
   "variable": [
     {
@@ -80,6 +80,10 @@
     {
       "key": "notificationId",
       "value": ""
+    },
+    {
+      "key": "lang",
+      "value": "so"
     }
   ],
   "item": [
@@ -94,6 +98,10 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "x-language",
+                "value": "so"
               }
             ],
             "url": {
@@ -108,7 +116,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"USER\",\n  \"name\": \"Mohamed Ali\",\n  \"email\": \"user@somspot.so\",\n  \"password\": \"Passw0rd!\",\n  \"confirmPassword\": \"Passw0rd!\"\n}"
+              "raw": "{\n  \"role\": \"USER\",\n  \"name\": \"Mohamed Ali\",\n  \"email\": \"user@somspot.so\",\n  \"password\": \"Passw0rd!\",\n  \"confirmPassword\": \"Passw0rd!\",\n  \"language\": \"so\"\n}"
             }
           }
         },
@@ -166,6 +174,29 @@
           }
         },
         {
+          "name": "Get me (identity + isProfileComplete)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{merchantToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns { authId, userId, email, role, isProfileComplete, missing[] }. Call after login; source of truth for profile completion (not in the JWT)."
+          }
+        },
+        {
           "name": "Phone: request OTP",
           "request": {
             "method": "POST",
@@ -188,7 +219,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"phoneNumber\": \"+252612345678\",\n  \"role\": \"USER\"\n}"
+              "raw": "{\n  \"phoneNumber\": \"+252612345678\",\n  \"role\": \"USER\",\n  \"language\": \"so\"\n}"
             },
             "description": "Dev returns data.devCode. role can be USER | MERCHANT | CREATOR."
           }
@@ -2181,6 +2212,30 @@
               "raw": "{\n  \"payoutId\": \"{{payoutId}}\",\n  \"action\": \"approve\"\n}"
             }
           }
+        },
+        {
+          "name": "Business creator content (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/creator/content?businessId={{businessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "content"
+              ],
+              "query": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}"
+                }
+              ]
+            },
+            "description": "Published creator posts for a business \u2014 powers the consumer business-detail 'Creator' tab."
+          }
         }
       ]
     },
@@ -2803,100 +2858,6 @@
           }
         },
         {
-          "name": "Legal - add terms",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/manage/add-terms-conditions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "add-terms-conditions"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"...\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Legal - get terms",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/manage/get-terms-conditions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "get-terms-conditions"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Legal - add privacy",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/manage/add-privacy-policy",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "add-privacy-policy"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"content\": \"...\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Legal - get privacy",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/manage/get-privacy-policy",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "get-privacy-policy"
-              ]
-            }
-          }
-        },
-        {
           "name": "Payouts - process (admin)",
           "request": {
             "method": "PATCH",
@@ -3098,6 +3059,36 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"password\": \"Passw0rd!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Rate the app (Rate SomSpot)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/rate-app",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "rate-app"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Love the deals!\"\n}"
             }
           }
         }
@@ -3332,10 +3323,239 @@
       ]
     },
     {
-      "name": "Manage / Legal (full)",
+      "name": "Feedback (user)",
       "item": [
         {
-          "name": "Add about-us",
+          "name": "Post support ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feedback/post-feedback",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feedback",
+                "post-feedback"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Business listing question\",\n  \"feedback\": \"How do I claim an offer?\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get one feedback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feedback/get-feedback?feedbackId={{feedbackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feedback",
+                "get-feedback"
+              ],
+              "query": [
+                {
+                  "key": "feedbackId",
+                  "value": "{{feedbackId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete feedback",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{userToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feedback/delete-feedback?feedbackId={{feedbackId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feedback",
+                "delete-feedback"
+              ],
+              "query": [
+                {
+                  "key": "feedbackId",
+                  "value": "{{feedbackId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Manage / Legal",
+      "item": [
+        {
+          "name": "Add Terms & Conditions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/add-terms-conditions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "add-terms-conditions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"By using SomSpot you agree to ...\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Terms & Conditions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/manage/get-terms-conditions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "get-terms-conditions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Terms & Conditions",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/delete-terms-conditions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "delete-terms-conditions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Privacy Policy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/add-privacy-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "add-privacy-policy"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"We respect your privacy ...\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Privacy Policy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/manage/get-privacy-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "get-privacy-policy"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Privacy Policy",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/delete-privacy-policy",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "delete-privacy-policy"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add About Us",
           "request": {
             "method": "POST",
             "header": [
@@ -3360,12 +3580,12 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"About SomSpot\"\n}"
+              "raw": "{\n  \"content\": \"SomSpot helps you discover local deals across Somalia.\"\n}"
             }
           }
         },
         {
-          "name": "Get about-us",
+          "name": "Get About Us",
           "request": {
             "method": "GET",
             "header": [],
@@ -3382,7 +3602,7 @@
           }
         },
         {
-          "name": "Delete about-us",
+          "name": "Delete About Us",
           "request": {
             "method": "DELETE",
             "header": [
@@ -3404,7 +3624,7 @@
           }
         },
         {
-          "name": "Add contact-us",
+          "name": "Add Contact Us",
           "request": {
             "method": "POST",
             "header": [
@@ -3434,7 +3654,7 @@
           }
         },
         {
-          "name": "Get contact-us",
+          "name": "Get Contact Us",
           "request": {
             "method": "GET",
             "header": [],
@@ -3451,7 +3671,7 @@
           }
         },
         {
-          "name": "Delete contact-us",
+          "name": "Delete Contact Us",
           "request": {
             "method": "DELETE",
             "header": [
@@ -3537,141 +3757,6 @@
               "path": [
                 "manage",
                 "delete-faq"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Delete terms",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/manage/delete-terms-conditions",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "delete-terms-conditions"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Delete privacy",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{adminToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/manage/delete-privacy-policy",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "manage",
-                "delete-privacy-policy"
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Feedback (user)",
-      "item": [
-        {
-          "name": "Post feedback",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{userToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/feedback/post-feedback",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "feedback",
-                "post-feedback"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"feedback\": \"Great app!\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Get one feedback",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{userToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/feedback/get-feedback?feedbackId={{feedbackId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "feedback",
-                "get-feedback"
-              ],
-              "query": [
-                {
-                  "key": "feedbackId",
-                  "value": "{{feedbackId}}"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Delete feedback",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{userToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/feedback/delete-feedback?feedbackId={{feedbackId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "feedback",
-                "delete-feedback"
-              ],
-              "query": [
-                {
-                  "key": "feedbackId",
-                  "value": "{{feedbackId}}"
-                }
               ]
             }
           }

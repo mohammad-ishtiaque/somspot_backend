@@ -72,9 +72,16 @@ const processPayout = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Payout processed", data: result });
 });
 
+
+const getBusinessContent = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.getBusinessContent(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator content retrieved", data: result });
+});
+
 const CreatorController = {
   getMyProfile,
   updateProfile,
+  getBusinessContent,
   linkSocial,
   getMarketplace,
   applyToCampaign,

@@ -258,9 +258,33 @@ const processPayout = async (payload: { payoutId?: string; action?: string }) =>
   return payout;
 };
 
+
+// Public: published creator content for a business (consumer "Creator" tab on
+// the business-detail screen — "see what local creators are saying").
+const getBusinessContent = async (query: { businessId?: string }) => {
+  validateFields(query, ["businessId"]);
+  const campaigns = await Campaign.find({ business: query.businessId }).select("_id").lean();
+  const campaignIds = campaigns.map((c) => c._id);
+
+  const content = await CampaignApplication.find({
+    campaign: { $in: campaignIds },
+    status: EnumTaskStatus.PUBLISHED,
+  })
+    .populate([
+      { path: "creator", select: "name profile_image" },
+      { path: "campaign", select: "name" },
+    ])
+    .select("postUrl creator campaign publishedAt")
+    .sort({ publishedAt: -1 })
+    .lean();
+
+  return content;
+};
+
 const CreatorService = {
   getMyProfile,
   updateProfile,
+  getBusinessContent,
   linkSocial,
   getMarketplace,
   applyToCampaign,

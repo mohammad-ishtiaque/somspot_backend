@@ -5,6 +5,8 @@ import { CreatorController } from "./creator.controller";
 
 const router = Router();
 
+router.get("/content", CreatorController.getBusinessContent);
+
 router
   // profile
   .get("/profile", auth(config.auth_level.creator), CreatorController.getMyProfile)

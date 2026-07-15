@@ -22,8 +22,10 @@ const registrationAccount = async (payload: {
   password: string;
   confirmPassword: string;
   email: string;
+  language?: string;
 }) => {
   const { role, name, password, confirmPassword, email } = payload;
+  const language = payload.language || "en";
 
   validateFields(payload, [
     "password",
@@ -40,6 +42,7 @@ const registrationAccount = async (payload: {
     name,
     email,
     password,
+    language,
     activationCode,
     activationCodeExpire,
   };
@@ -70,7 +73,7 @@ const registrationAccount = async (payload: {
       user.activationCodeExpire = activationCodeExpire;
       await user.save();
 
-      EmailHelpers.sendOtpResendEmail(email, data);
+      EmailHelpers.sendOtpResendEmail(email, data, language);
     }
 
     return {
@@ -80,7 +83,7 @@ const registrationAccount = async (payload: {
   }
 
   if (role !== EnumUserRole.ADMIN)
-    EmailHelpers.sendActivationEmail(email, data);
+    EmailHelpers.sendActivationEmail(email, data, language);
 
   const auth = await Auth.create(authData);
 
@@ -88,6 +91,7 @@ const registrationAccount = async (payload: {
     authId: auth._id,
     name,
     email,
+    language,
   };
 
   if (role === EnumUserRole.ADMIN) await Admin.create(userData);
@@ -123,7 +127,7 @@ const resendActivationCode = async (payload: { email: string }) => {
     },
   );
 
-  EmailHelpers.sendOtpResendEmail(email, data);
+  EmailHelpers.sendOtpResendEmail(email, data, user.language);
 };
 
 const activateAccount = async (payload: {
@@ -269,7 +273,7 @@ const forgotPass = async (payload: { email: string }) => {
     ),
   };
 
-  EmailHelpers.sendResetPasswordEmail(email, data);
+  EmailHelpers.sendResetPasswordEmail(email, data, user.language);
 };
 
 const forgetPassOtpVerify = async (payload: {
@@ -438,6 +442,7 @@ const requestPhoneOtp = async (payload: {
   phoneNumber: string;
   name?: string;
   role?: string;
+  language?: string;
 }) => {
   validateFields(payload, ["phoneNumber"]);
   const phoneNumber = payload.phoneNumber.trim();
@@ -463,6 +468,7 @@ const requestPhoneOtp = async (payload: {
       password: Math.random().toString(36).slice(2) + Date.now(),
       role,
       loginProvider: EnumLoginProvider.PHONE,
+      language: payload.language || "en",
       activationCode: code,
       activationCodeExpire: expiredAt,
     });
@@ -521,6 +527,7 @@ const verifyPhoneOtp = async (payload: {
       name: auth.name,
       email: auth.email,
       phoneNumber,
+      language: auth.language || "en",
     });
   }
 

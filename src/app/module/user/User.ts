@@ -22,6 +22,11 @@ const UserSchema = new Schema<IUser>(
     phoneNumber: {
       type: String,
     },
+    language: {
+      type: String,
+      enum: ["en", "so", "ar"],
+      default: "en",
+    },
     dateOfBirth: {
       type: String,
     },

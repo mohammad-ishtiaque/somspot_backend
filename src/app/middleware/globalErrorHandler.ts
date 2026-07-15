@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import mongoose, { Error as mongooseError } from "mongoose";
 import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 import { MulterError } from "multer";
+import { t } from "../../util/i18n";
 import config from "../../config";
 import handleValidationError from "../../error/handleValidationError";
 import handleCastError from "../../error/handleCastError";
@@ -176,10 +177,11 @@ const globalErrorHandler = (
   }
 
   // Response
+  const lang = (req && (req as any).language) || "en";
   const response: ErrorResponse = {
     success: false,
     statusCode,
-    message,
+    message: t(message, lang),
     errorMessages,
     stack:
       config.env !== "production" && error instanceof Error

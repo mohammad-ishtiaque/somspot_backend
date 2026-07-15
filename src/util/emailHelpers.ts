@@ -5,6 +5,7 @@ import otpResendTemp from "../mail/otpResendTemp";
 import resetPassEmailTemp from "../mail/resetPassEmailTemp";
 import signUpEmailTemp from "../mail/signUpEmailTemp";
 import { sendEmail } from "../util/sendEmail";
+import { t } from "./i18n";
 
 const sendActivationEmail = async (
   email: string,
@@ -13,11 +14,12 @@ const sendActivationEmail = async (
     activationCode: string;
     activationCodeExpire: number;
   },
+  language: string = "en",
 ) => {
   try {
     await sendEmail({
       email,
-      subject: "Activate Your Account",
+      subject: t("Activate Your Account", language),
       html: signUpEmailTemp({
         user: data.user,
         activationCode: data.activationCode,
@@ -37,11 +39,12 @@ const sendOtpResendEmail = async (
     activationCode: string;
     activationCodeExpire: number;
   },
+  language: string = "en",
 ) => {
   try {
     await sendEmail({
       email,
-      subject: "New Activation Code",
+      subject: t("New Activation Code", language),
       html: otpResendTemp({
         user: data.user,
         code: Number(data.activationCode),
@@ -63,11 +66,12 @@ const sendResetPasswordEmail = async (
     verificationCode: string;
     verificationCodeExpire: number;
   },
+  language: string = "en",
 ) => {
   try {
     await sendEmail({
       email,
-      subject: "Password Reset Code",
+      subject: t("Password Reset Code", language),
       html: resetPassEmailTemp({
         name: data.user,
         verificationCode: Number(data.verificationCode),

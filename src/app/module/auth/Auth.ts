@@ -10,6 +10,7 @@ interface IAuth {
   email: string;
   phoneNumber?: string;
   loginProvider?: string;
+  language?: string;
   password: string;
   role: string;
   isVerified?: boolean;
@@ -51,6 +52,11 @@ const AuthSchema = new Schema<IAuth, AuthModel>(
     },
     loginProvider: {
       type: String,
+    },
+    language: {
+      type: String,
+      enum: ["en", "so", "ar"],
+      default: "en",
     },
     password: {
       type: String,

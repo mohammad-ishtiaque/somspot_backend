@@ -102,6 +102,17 @@ const EnumPayoutStatus = {
   REJECTED: "rejected",
 };
 
+const EnumLanguage = {
+  EN: "en",
+  SO: "so",
+  AR: "ar",
+};
+
+const EnumSupportStatus = {
+  OPEN: "open",
+  REPLIED: "replied",
+};
+
 const EnumSocialPlatform = {
   TIKTOK: "tiktok",
   INSTAGRAM: "instagram",
@@ -122,4 +133,6 @@ export {
   EnumSubscriptionStatus,
   EnumPayoutStatus,
   EnumSocialPlatform,
+  EnumSupportStatus,
+  EnumLanguage,
 };

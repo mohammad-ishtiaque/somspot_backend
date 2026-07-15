@@ -170,6 +170,7 @@ const activateAccount = async (payload: {
     userId: result._id,
     email,
     role: auth.role,
+    isActive: auth.isActive,
   };
 
   const accessToken = jwtHelpers.createToken(
@@ -226,6 +227,7 @@ const loginAccount = async (payload: { email: string; password: string }) => {
     userId: String(result._id),
     email,
     role: auth.role,
+    isActive: auth.isActive
   };
 
   const accessToken = jwtHelpers.createToken(

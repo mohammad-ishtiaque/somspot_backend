@@ -21,7 +21,7 @@ const config = {
   database_url: process.env.MONGO_URL,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS || "10",
   auth_level: {
-    user: ["USER", "ADMIN", "SUPER_ADMIN"],
+    user: ["USER","MERCHANT", "CREATOR", "ADMIN", "SUPER_ADMIN"],
     merchant: ["MERCHANT", "ADMIN", "SUPER_ADMIN"],
     creator: ["CREATOR", "ADMIN", "SUPER_ADMIN"],
     admin: ["ADMIN", "SUPER_ADMIN"],

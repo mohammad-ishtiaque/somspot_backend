@@ -2,9 +2,14 @@ const { default: status } = require("http-status");
 import { AuthService } from "./auth.service";
 import sendResponse from "../../../util/sendResponse";
 import catchAsync from "../../../util/catchAsync";
+import getAuthUser from "../../../util/getAuthUser";
 import config from "../../../config";
 import { Request, Response } from "express";
 import ApiError from "../../../error/ApiError";
+import { getProfileCompletion } from "./profileCompletion";
+import User from "../user/User";
+import auth from "../../middleware/auth";
+import Auth from "./Auth";
 
 const registrationAccount = catchAsync(async (req: Request, res: Response) => {
   const result = await AuthService.registrationAccount(req.body);
@@ -130,6 +135,28 @@ const verifyPhoneOtp = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+
+const getMe = catchAsync(async (req: Request, res: Response) => {
+  const user = getAuthUser(req);
+  // console.log(user)
+  const authUserAc = await Auth.findById(user.authId)
+  // console.log(authUserAc)
+  const completion = await getProfileCompletion(user);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Current user",
+    data: {
+      authId: user.authId,
+      userId: user.userId,
+      email: user.email,
+      role: user.role,
+      isActive: authUserAc.isActive,
+      ...completion,
+    },
+  });
+});
+
 const AuthController = {
   registrationAccount,
   activateAccount,
@@ -141,6 +168,7 @@ const AuthController = {
   resendActivationCode,
   requestPhoneOtp,
   verifyPhoneOtp,
+  getMe,
 };
 
 export { AuthController };

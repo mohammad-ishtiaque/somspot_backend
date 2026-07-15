@@ -9,6 +9,7 @@ const router = express.Router();
 router
   .post("/register", AuthController.registrationAccount)
   .post("/login", limiter, AuthController.loginAccount)
+  .get("/me", auth(config.auth_level.user), AuthController.getMe)
   .post("/phone/request-otp", limiter, AuthController.requestPhoneOtp)
   .post("/phone/verify-otp", limiter, AuthController.verifyPhoneOtp)
   .post("/activate-account", AuthController.activateAccount)

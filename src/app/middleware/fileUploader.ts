@@ -3,95 +3,64 @@ import { Request } from "express";
 import fs from "fs";
 import path from "path";
 
-const allowedMimeTypes: string[] = [
-  "image/jpeg",
-  "image/png",
-  "image/jpg",
-  "image/webp",
-];
-const allowedFieldNames: string[] = ["profile_image"];
+// One reusable uploader for the whole app. Each accepted field declares which
+// mime types it allows and how many files — so images and PDFs both work
+// through a single middleware. Add a field here to make it uploadable anywhere.
+const IMAGE = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
 
-// Validate if the provided MIME type is in the allowed list
-const isValidFileType = (mimetype: string): boolean => {
-  return allowedMimeTypes.includes(mimetype);
+interface FieldRule {
+  maxCount: number;
+  mimeTypes: string[];
+}
+
+const FIELD_RULES: Record<string, FieldRule> = {
+  profile_image: { maxCount: 1, mimeTypes: IMAGE },
+  // business
+  logo: { maxCount: 1, mimeTypes: IMAGE },
+  coverImage: { maxCount: 1, mimeTypes: IMAGE },
+  gallery: { maxCount: 8, mimeTypes: IMAGE },
 };
 
-// Create upload directory if it doesn't already exist
 const createDirIfNotExists = (uploadPath: string): void => {
-  if (!fs.existsSync(uploadPath)) {
-    fs.mkdirSync(uploadPath, { recursive: true });
-  }
+  if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
 };
 
 const uploadFile = () => {
   const storage: StorageEngine = multer.diskStorage({
-    destination: function (
-      req: Request,
-      file: Express.Multer.File,
-      cb: (error: Error | null, destination?: string) => void,
-    ): void {
+    destination(req: Request, file, cb) {
       const uploadPath = `uploads/${file.fieldname}`;
-
       createDirIfNotExists(uploadPath);
-
-      if (isValidFileType(file.mimetype)) {
-        cb(null, uploadPath);
-      } else {
-        cb(new Error("Invalid file type"));
-      }
+      cb(null, uploadPath);
     },
-
-    filename: function (
-      req: Request,
-      file: Express.Multer.File,
-      cb: (error: Error | null, filename?: string) => void,
-    ): void {
-      // path.basename strips any directory segments (e.g. "../../etc/x")
-      // an attacker could put in the multipart filename field.
-      const safeOriginalName = path.basename(file.originalname);
-      const name = Date.now() + "-" + safeOriginalName;
-
-      // Store uploaded file paths in req.uploadedFiles for deletion in case of error or rollback needed
-      if (!req.uploadedFiles) {
-        req.uploadedFiles = [];
-      }
-      const filePath = `uploads/${file.fieldname}/${name}`;
-      req.uploadedFiles.push(filePath);
-
+    filename(req: Request, file, cb) {
+      // Strip any path segments an attacker could inject via the filename.
+      const safeName = path.basename(file.originalname).replace(/\s+/g, "_");
+      const name = `${Date.now()}-${Math.round(Math.random() * 1e6)}-${safeName}`;
+      if (!req.uploadedFiles) req.uploadedFiles = [];
+      req.uploadedFiles.push(`uploads/${file.fieldname}/${name}`);
       cb(null, name);
     },
   });
 
-  // File filter to validate field names and MIME types before upload
   const fileFilter = (
     req: Request,
     file: Express.Multer.File,
-    cb: (error: Error | null, acceptFile?: boolean) => void,
+    cb: multer.FileFilterCallback,
   ): void => {
-    // Allow requests without files (when there's no fieldname)
-    if (!file.fieldname) return cb(null, true);
-
-    // Check if the fieldname is in the allowed list
-    if (!allowedFieldNames.includes(file.fieldname)) {
-      return cb(new Error("Invalid fieldname"));
-    }
-
-    // Check if the file type is valid
-    if (isValidFileType(file.mimetype)) {
-      return cb(null, true);
-    } else {
-      return cb(new Error("Invalid file type"));
-    }
+    const rule = FIELD_RULES[file.fieldname];
+    if (!rule) return cb(new Error(`Unexpected upload field: ${file.fieldname}`));
+    if (!rule.mimeTypes.includes(file.mimetype))
+      return cb(new Error(`Invalid file type for ${file.fieldname}: ${file.mimetype}`));
+    cb(null, true);
   };
 
-  // Configure multer middleware with storage and file filter, accepting up to 4 image fields
-  const upload = multer({
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file; adjust as needed
-  }).fields([{ name: "profile_image", maxCount: 1 }]);
-
-  return upload;
+  return multer({
+    storage,
+    fileFilter,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file (PDFs can be larger)
+  }).fields(
+    Object.entries(FIELD_RULES).map(([name, r]) => ({ name, maxCount: r.maxCount })),
+  );
 };
 
-export {uploadFile}
+export { uploadFile };

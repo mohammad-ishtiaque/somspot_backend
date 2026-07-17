@@ -2,14 +2,15 @@ import { Router } from "express";
 import auth from "../../middleware/auth";
 import config from "../../../config";
 import { BusinessController } from "./business.controller";
+import { uploadFile } from "../../middleware/fileUploader";
 
 const router = Router();
 
 router
   // merchant
-  .post("/create", auth(config.auth_level.merchant), BusinessController.createBusiness)
+  .post("/create", auth(config.auth_level.merchant), uploadFile(), BusinessController.createBusiness)
   .get("/my", auth(config.auth_level.merchant), BusinessController.getMyBusinesses)
-  .patch("/update", auth(config.auth_level.merchant), BusinessController.updateBusiness)
+  .patch("/update", auth(config.auth_level.merchant), uploadFile(), BusinessController.updateBusiness)
   .delete("/delete", auth(config.auth_level.merchant), BusinessController.deleteBusiness)
   // admin
   .patch("/verify", auth(config.auth_level.admin), BusinessController.verifyBusiness)

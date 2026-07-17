@@ -6,21 +6,82 @@ import validateFields from "../../../util/validateFields";
 import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
+const tzlookup = require("tz-lookup");
 
-// Compute a simple "open now / closes at" hint from stored opening hours.
-const computeOpenStatus = (hours: { day: number; open: string; close: string; closed?: boolean }[]) => {
-  if (!hours?.length) return { isOpenNow: false, closesAt: null as string | null };
-  const now = new Date();
-  const today = hours.find((h) => h.day === now.getDay());
-  if (!today || today.closed) return { isOpenNow: false, closesAt: null };
-  const cur = now.getHours() * 60 + now.getMinutes();
-  const toMin = (t: string) => {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + (m || 0);
-  };
-  const isOpenNow = cur >= toMin(today.open) && cur < toMin(today.close);
-  return { isOpenNow, closesAt: isOpenNow ? today.close : null };
+// Resolve an IANA timezone dynamically: an explicit value wins; otherwise
+// derive it from the business coordinates (offline lookup, no API); otherwise
+// undefined so the schema default (Africa/Mogadishu) applies.
+const resolveTimezone = (
+  lat?: unknown,
+  lng?: unknown,
+  explicit?: unknown,
+): string | undefined => {
+  if (explicit) return String(explicit);
+  if (lat != null && lng != null) {
+    try {
+      return tzlookup(Number(lat), Number(lng));
+    } catch {
+      /* invalid coordinates -> fall through to default */
+    }
+  }
+  return undefined;
 };
+
+// Current weekday + minutes-since-midnight in the business's local timezone.
+const getNowInTimezone = (timezone: string) => {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find((x) => x.type === t)?.value || "";
+    let hour = get("hour");
+    if (hour === "24") hour = "00"; // some environments render midnight as 24
+    return {
+      weekday: get("weekday").toLowerCase().slice(0, 3),
+      minutes: Number(hour) * 60 + Number(get("minute")),
+    };
+  } catch {
+    // Invalid/unknown timezone -> fall back to UTC weekday/time.
+    const now = new Date();
+    const wd = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][now.getUTCDay()];
+    return { weekday: wd, minutes: now.getUTCHours() * 60 + now.getUTCMinutes() };
+  }
+};
+
+// "Is the business open right now?" — evaluated in its own timezone, handling
+// closed days, overnight spans (close < open) and missing/invalid hours.
+const computeOpenStatus = (
+  hours: { day: string; open: string; close: string; closed?: boolean }[] = [],
+  timezone = "Africa/Mogadishu",
+) => {
+  if (!hours?.length)
+    return { isOpen: false, closesAt: null as string | null, opensAt: null as string | null };
+
+  const { weekday, minutes } = getNowInTimezone(timezone);
+  const today = hours.find((h) => h.day === weekday);
+  if (!today || today.closed) return { isOpen: false, closesAt: null, opensAt: null };
+
+  const toMin = (t: string) => {
+    const [h, m] = (t || "0:0").split(":").map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+  const open = toMin(today.open);
+  const close = toMin(today.close);
+  const isOpen =
+    close > open ? minutes >= open && minutes < close : minutes >= open || minutes < close;
+
+  return { isOpen, closesAt: isOpen ? today.close : null, opensAt: isOpen ? null : today.open };
+};
+
+// Attaches isOpen/closesAt/opensAt to a (lean) business object.
+const withOpen = <T extends { openingHours?: any; timezone?: string }>(b: T) => ({
+  ...b,
+  ...computeOpenStatus(b.openingHours, b.timezone),
+});
 
 const createBusiness = async (userData: AuthUserPayload, payload: Record<string, any>) => {
   validateFields(payload, ["name", "category"]);
@@ -39,7 +100,8 @@ const createBusiness = async (userData: AuthUserPayload, payload: Record<string,
         ? { type: "Point", coordinates: [Number(payload.lng), Number(payload.lat)] }
         : undefined,
     openingHours: payload.openingHours ?? [],
-    documents: payload.documents ?? [],
+    timezone: resolveTimezone(payload.lat, payload.lng, payload.timezone),
+    whatsapp: payload.whatsapp,
     status: EnumBusinessStatus.PENDING,
   });
   return business;
@@ -66,7 +128,7 @@ const getAllBusinesses = async (query: QueryParams) => {
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
     query,
   ).execute(["name"]);
-  return { meta, result };
+  return { meta, result: result.map(withOpen) };
 };
 
 // Trending = approved, ranked by rating then review count.
@@ -77,7 +139,7 @@ const getTrending = async (query: QueryParams) => {
     .limit(limit)
     .populate([{ path: "category", select: "name slug icon" }])
     .lean();
-  return result;
+  return result.map(withOpen);
 };
 
 const getBusiness = async (userData: AuthUserPayload | undefined, query: { businessId?: string }) => {
@@ -94,7 +156,7 @@ const getBusiness = async (userData: AuthUserPayload | undefined, query: { busin
       (isPrivileged(userData.role) || String(business.owner) === userData.userId));
   if (!canView) throw new ApiError(status.NOT_FOUND, "Business not found");
 
-  return { ...business, ...computeOpenStatus(business.openingHours) };
+  return withOpen(business);
 };
 
 const getMyBusinesses = async (userData: AuthUserPayload, query: QueryParams) => {
@@ -102,7 +164,7 @@ const getMyBusinesses = async (userData: AuthUserPayload, query: QueryParams) =>
     Business.find({ owner: userData.userId }).lean(),
     query,
   ).execute(["name"]);
-  return { meta, result };
+  return { meta, result: result.map(withOpen) };
 };
 
 const updateBusiness = async (userData: AuthUserPayload, payload: Record<string, any>) => {
@@ -112,10 +174,15 @@ const updateBusiness = async (userData: AuthUserPayload, payload: Record<string,
   if (!isPrivileged(userData.role) && String(business.owner) !== userData.userId)
     throw new ApiError(status.FORBIDDEN, "Not your business");
 
-  const fields = ["name", "category", "description", "logo", "coverImage", "gallery", "phone", "address", "openingHours", "documents"];
+  const fields = ["name", "category", "description", "logo", "coverImage", "gallery", "phone", "address", "openingHours", "whatsapp", "timezone"];
   for (const f of fields) if (payload[f] !== undefined) (business as any)[f] = payload[f];
-  if (payload.lng != null && payload.lat != null)
+  if (payload.lng != null && payload.lat != null) {
     business.location = { type: "Point", coordinates: [Number(payload.lng), Number(payload.lat)] };
+    if (!payload.timezone) {
+      const tz = resolveTimezone(payload.lat, payload.lng);
+      if (tz) business.timezone = tz;
+    }
+  }
 
   await business.save();
   return business;

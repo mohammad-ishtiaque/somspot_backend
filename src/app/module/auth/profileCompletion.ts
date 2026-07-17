@@ -4,59 +4,98 @@ import User from "../user/User";
 import { EnumUserRole } from "../../../util/enum";
 import type { AuthUserPayload } from "../../../types/auth.types";
 
+export interface CompletionSection {
+  complete: boolean;
+  missing: string[];
+}
+
 export interface ProfileCompletion {
   isProfileComplete: boolean;
-  missing: string[]; // requirement keys still unmet ([] === complete)
+  missing: string[]; // flattened keys ([] === complete)
+  sections?: Record<string, CompletionSection>; // per-area breakdown (merchant)
 }
 
-// Strategy contract: given the auth user, return the list of missing
-// requirement keys. Add a role = add a strategy (Open/Closed).
+// ---- Reusable field checks (DRY: shared across strategies) ----
+
+// Personal profile (base User) — name + phone.
+const missingPersonalFields = async (userId: string): Promise<string[]> => {
+  const p = await User.findById(userId).lean();
+  const missing: string[] = [];
+  if (!p?.name) missing.push("name");
+  if (!p?.phoneNumber) missing.push("phoneNumber");
+  return missing;
+};
+
+// Business profile — the merchant's (first) business core fields.
+// >>> Adjust required business fields here if your definition differs.
+const missingBusinessFields = async (userId: string): Promise<string[]> => {
+  const b = await Business.findOne({ owner: userId }).sort({ createdAt: 1 }).lean();
+  if (!b) return ["business"];
+  const missing: string[] = [];
+  if (!b.name) missing.push("name");
+  if (!b.logo) missing.push("logo");
+  if (!b.phone) missing.push("phone");
+  if (!b.address) missing.push("address");
+  if (!b.category) missing.push("category");
+  if (!b.openingHours?.length) missing.push("openingHours");
+  return missing;
+};
+
+const section = (missing: string[]): CompletionSection => ({
+  complete: missing.length === 0,
+  missing,
+});
+
+// ---- Strategy contract: each role returns a full ProfileCompletion ----
 interface ICompletionStrategy {
-  missingFields(user: AuthUserPayload): Promise<string[]>;
+  evaluate(user: AuthUserPayload): Promise<ProfileCompletion>;
 }
 
-// MERCHANT: needs at least one business with the core profile fields filled.
-// >>> Adjust the required fields here if your definition of "complete" differs.
-const merchantStrategy: ICompletionStrategy = {
-  async missingFields(user) {
-    const business = await Business.findOne({ owner: user.userId })
-      .sort({ createdAt: 1 })
-      .lean();
-    if (!business) return ["business"];
-    const missing: string[] = [];
-    if (!business.name) missing.push("business.name");
-    if (!business.logo) missing.push("business.logo");
-    if (!business.phone) missing.push("business.phone");
-    if (!business.address) missing.push("business.address");
-    if (!business.category) missing.push("business.category");
-    if (!business.openingHours?.length) missing.push("business.openingHours");
-    return missing;
-  },
-};
-
-// CREATOR: needs a creator profile with at least one linked social account.
-const creatorStrategy: ICompletionStrategy = {
-  async missingFields(user) {
-    const creator = await Creator.findOne({ user: user.userId }).lean();
-    return creator?.socials?.length ? [] : ["socialAccount"];
-  },
-};
-
-// CUSTOMER: needs name + phone number on the base profile.
+// CUSTOMER: personal profile only.
 const userStrategy: ICompletionStrategy = {
-  async missingFields(user) {
-    const profile = await User.findById(user.userId).lean();
-    const missing: string[] = [];
-    if (!profile?.name) missing.push("name");
-    if (!profile?.phoneNumber) missing.push("phoneNumber");
-    return missing;
+  async evaluate(user) {
+    const missing = await missingPersonalFields(user.userId);
+    return { isProfileComplete: missing.length === 0, missing };
   },
 };
 
-// ADMIN / SUPER_ADMIN: no onboarding step — always complete.
+// MERCHANT (Option 3): personal + business as SEPARATE sections.
+const merchantStrategy: ICompletionStrategy = {
+  async evaluate(user) {
+    const [personal, business] = await Promise.all([
+      missingPersonalFields(user.userId),
+      missingBusinessFields(user.userId),
+    ]);
+    const sections = { personal: section(personal), business: section(business) };
+    const missing = [
+      ...personal.map((k) => `personal.${k}`),
+      ...business.map((k) => `business.${k}`),
+    ];
+    return { isProfileComplete: missing.length === 0, missing, sections };
+  },
+};
+
+// CREATOR: personal + at least one linked social account (as sections too).
+const creatorStrategy: ICompletionStrategy = {
+  async evaluate(user) {
+    const [personal, creator] = await Promise.all([
+      missingPersonalFields(user.userId),
+      Creator.findOne({ user: user.userId }).lean(),
+    ]);
+    const social = creator?.socials?.length ? [] : ["socialAccount"];
+    const sections = { personal: section(personal), creator: section(social) };
+    const missing = [
+      ...personal.map((k) => `personal.${k}`),
+      ...social.map((k) => `creator.${k}`),
+    ];
+    return { isProfileComplete: missing.length === 0, missing, sections };
+  },
+};
+
+// ADMIN / SUPER_ADMIN: no onboarding.
 const alwaysComplete: ICompletionStrategy = {
-  async missingFields() {
-    return [];
+  async evaluate() {
+    return { isProfileComplete: true, missing: [] };
   },
 };
 
@@ -69,11 +108,9 @@ const strategies: Record<string, ICompletionStrategy> = {
   [EnumUserRole.SUPER_ADMIN]: alwaysComplete,
 };
 
-// Single entry point — used by GET /auth/me (and anywhere else that needs it).
 export const getProfileCompletion = async (
   user: AuthUserPayload,
 ): Promise<ProfileCompletion> => {
   const strategy = strategies[user.role] || alwaysComplete;
-  const missing = await strategy.missingFields(user);
-  return { isProfileComplete: missing.length === 0, missing };
+  return strategy.evaluate(user);
 };

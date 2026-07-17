@@ -21,17 +21,20 @@ describe("getProfileCompletion (Option C, strategy per role)", () => {
     expect(r.missing).toContain("business");
   });
 
-  it("MERCHANT complete when the business has all core fields", async () => {
+  it("MERCHANT exposes separate personal + business sections", async () => {
+    const profile = await User.create({ authId: new mongoose.Types.ObjectId(), name: "M", email: "m@x.co", phoneNumber: "+252611111111" });
     const u = mkUser(EnumUserRole.MERCHANT);
+    u.userId = String(profile._id);
     await Business.create({
       owner: u.userId, name: "Shop", category: new mongoose.Types.ObjectId(),
       logo: "l.png", phone: "+252...", address: "Mogadishu",
-      openingHours: [{ day: 1, open: "09:00", close: "22:00" }],
+      openingHours: [{ day: "sat", open: "09:00", close: "22:00" }],
       status: EnumBusinessStatus.PENDING,
     });
     const r = await getProfileCompletion(u as any);
+    expect(r.sections?.personal.complete).toBe(true);
+    expect(r.sections?.business.complete).toBe(true);
     expect(r.isProfileComplete).toBe(true);
-    expect(r.missing).toHaveLength(0);
   });
 
   it("CREATOR complete only after linking a social account", async () => {

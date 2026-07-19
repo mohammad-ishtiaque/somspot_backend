@@ -114,9 +114,14 @@ export const deleteMyAccount = async (payload: {
 
 // Admin "Users Management" list. Optional ?role filter (USER | MERCHANT | CREATOR).
 const adminGetAllUsers = async (query: QueryParams) => {
+  // `role` lives on Auth, not User — resolve it to matching authIds and keep it
+  // OUT of the QueryBuilder query so filter() doesn't apply a bogus
+  // { role } filter on the User collection (which has no role field).
+  const { role, ...listQuery } = query;
+
   const base: Record<string, unknown> = {};
-  if (query.role) {
-    const auths = await Auth.find({ role: query.role }).select("_id").lean();
+  if (role) {
+    const auths = await Auth.find({ role }).select("_id").lean();
     base.authId = { $in: auths.map((a) => a._id) };
   }
 
@@ -124,7 +129,7 @@ const adminGetAllUsers = async (query: QueryParams) => {
     User.find(base)
       .populate([{ path: "authId", select: "role isBlocked isActive email phoneNumber" }])
       .lean(),
-    query,
+    listQuery as QueryParams,
   ).execute(["name", "email"]);
   return { meta, result };
 };

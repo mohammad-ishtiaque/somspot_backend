@@ -27,7 +27,7 @@ const businessSchema = new Schema<IBusiness>(
     whatsapp: { type: String },
     address: { type: String },
     location: {
-      type: { type: String, enum: ["Point"], default: "Point" },
+      type: { type: String, enum: ["Point"] },
       coordinates: { type: [Number] },
     },
     openingHours: { type: [openingHourSchema], default: [] },

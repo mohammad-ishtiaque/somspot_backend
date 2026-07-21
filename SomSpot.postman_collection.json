@@ -2,7 +2,7 @@
   "info": {
     "name": "SomSpot API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "SomSpot (taatiko12) backend \u2014 consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in.\n\nLocalization: send header `x-language: en|so|ar` on any request to get localized success/error messages. The user's language is also stored at signup (register / phone request-otp `language` field) and used for outgoing emails."
+    "description": "SomSpot (taatiko12) backend — consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in.\n\nLocalization: send header `x-language: en|so|ar` on any request to get localized success/error messages. The user's language is also stored at signup (register / phone request-otp `language` field) and used for outgoing emails."
   },
   "variable": [
     {
@@ -78,12 +78,21 @@
       "value": ""
     },
     {
+      "key": "creatorUserId",
+      "value": "",
+      "description": "The User _id (not the Creator profile id) of a creator to invite in campaign/create's invitedCreator field"
+    },
+    {
       "key": "notificationId",
       "value": ""
     },
     {
       "key": "lang",
       "value": "so"
+    },
+    {
+      "key": "manageDocId",
+      "value": ""
     }
   ],
   "item": [
@@ -417,8 +426,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Restaurant\",\n  \"icon\": \"restaurant\",\n  \"order\": 1\n}"
-            }
+              "raw": "{\n  \"name\": \"Restaurant\",\n  \"slug\": \"restaurant\",\n  \"icon\": \"restaurant\",\n  \"order\": 1\n}"
+            },
+            "description": "slug is optional — auto-derived (slugified) from name if omitted. order controls display order (default 0)."
           }
         },
         {
@@ -427,15 +437,28 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/category/get-all",
+              "raw": "{{baseUrl}}/category/get-all?searchTerm=&sort=order",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "category",
                 "get-all"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — case-insensitive match on name"
+                },
+                {
+                  "key": "sort",
+                  "value": "order",
+                  "description": "Optional — e.g. order, -createdAt (default)"
+                }
               ]
-            }
+            },
+            "description": "Public. Always scoped to isActive=true (cannot be overridden via query)."
           }
         },
         {
@@ -532,10 +555,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{merchantToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -549,9 +568,83 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Hilib Macaan Restaurant\",\n  \"category\": \"{{categoryId}}\",\n  \"description\": \"Authentic Somali cuisine.\",\n  \"phone\": \"+252612345678\",\n  \"address\": \"Maka Al Mukarama Road, Mogadishu\",\n  \"lng\": 45.3182,\n  \"lat\": 2.0469,\n  \"openingHours\": [\n    {\n      \"day\": 1,\n      \"open\": \"09:00\",\n      \"close\": \"22:00\"\n    }\n  ]\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Hilib Macaan Restaurant",
+                  "type": "text"
+                },
+                {
+                  "key": "category",
+                  "value": "{{categoryId}}",
+                  "type": "text",
+                  "description": "Category _id (from category/get-all)"
+                },
+                {
+                  "key": "description",
+                  "value": "Authentic Somali cuisine.",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+252612345678",
+                  "type": "text"
+                },
+                {
+                  "key": "whatsapp",
+                  "value": "+252612345678",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Maka Al Mukarama Road, Mogadishu",
+                  "type": "text"
+                },
+                {
+                  "key": "lat",
+                  "value": "2.0469",
+                  "type": "text",
+                  "description": "Optional — used for geo search + timezone lookup"
+                },
+                {
+                  "key": "lng",
+                  "value": "45.3182",
+                  "type": "text"
+                },
+                {
+                  "key": "timezone",
+                  "value": "Africa/Mogadishu",
+                  "type": "text",
+                  "description": "Optional IANA tz — overrides lat/lng auto-lookup"
+                },
+                {
+                  "key": "openingHours",
+                  "value": "[{\"day\":\"mon\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"tue\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"wed\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"thu\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"fri\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"sat\",\"open\":\"09:00\",\"close\":\"23:00\"},{\"day\":\"sun\",\"closed\":true,\"open\":\"00:00\",\"close\":\"00:00\"}]",
+                  "type": "text",
+                  "description": "JSON string. day enum: sun|mon|tue|wed|thu|fri|sat. open/close are \"HH:mm\" local time; closed:true marks a day off."
+                },
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — single image (jpeg/png/jpg/webp, max 10MB)"
+                },
+                {
+                  "key": "coverImage",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — single image"
+                },
+                {
+                  "key": "gallery",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — up to 8 images. Add more rows with the same key to upload multiple."
+                }
+              ]
+            },
+            "description": "multipart/form-data. Do not set Content-Type manually — Postman sets the multipart boundary automatically. New business always starts status=pending until an admin verifies it."
           }
         },
         {
@@ -584,10 +677,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{merchantToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -601,9 +690,75 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"description\": \"Best camel meat in town.\"\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "businessId",
+                  "value": "{{businessId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Best camel meat in town.",
+                  "type": "text"
+                },
+                {
+                  "key": "phone",
+                  "value": "+252612345678",
+                  "type": "text"
+                },
+                {
+                  "key": "whatsapp",
+                  "value": "+252612345678",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Maka Al Mukarama Road, Mogadishu",
+                  "type": "text"
+                },
+                {
+                  "key": "lat",
+                  "value": "2.0469",
+                  "type": "text"
+                },
+                {
+                  "key": "lng",
+                  "value": "45.3182",
+                  "type": "text"
+                },
+                {
+                  "key": "timezone",
+                  "value": "Africa/Mogadishu",
+                  "type": "text"
+                },
+                {
+                  "key": "openingHours",
+                  "value": "[{\"day\":\"mon\",\"open\":\"09:00\",\"close\":\"22:00\"},{\"day\":\"sat\",\"open\":\"09:00\",\"close\":\"23:00\"}]",
+                  "type": "text",
+                  "description": "JSON string, same shape as create. Replaces the whole array."
+                },
+                {
+                  "key": "logo",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — replaces existing logo"
+                },
+                {
+                  "key": "coverImage",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — replaces existing coverImage"
+                },
+                {
+                  "key": "gallery",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — replaces existing gallery"
+                }
+              ]
+            },
+            "description": "multipart/form-data. Only businessId is required; every other field is optional and only applied when present. Owner or admin only."
           }
         },
         {
@@ -633,7 +788,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"action\": \"approve\"\n}"
-            }
+            },
+            "description": "action enum: approve | reject. When action=reject, include rejectionReason (defaults to \"Not specified\" if omitted)."
           }
         },
         {
@@ -680,7 +836,8 @@
                   "value": "10"
                 }
               ]
-            }
+            },
+            "description": "Public. status is always forced to approved server-side. category is a Category _id (see category/get-all). lat+lng together enable geo \"near me\" sort within radiusKm (default 10)."
           }
         },
         {
@@ -775,10 +932,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{merchantToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -792,9 +945,21 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"title\": \"20% Off Family Platter\",\n  \"discountLabel\": \"20%\",\n  \"description\": \"Roasted goat, rice & salad.\",\n  \"terms\": \"Dine-in only. One claim per customer.\",\n  \"endAt\": \"2026-12-31T23:59:59.000Z\",\n  \"claimLimitPerUser\": 1,\n  \"estimatedValue\": 12\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                { "key": "business", "value": "{{businessId}}", "type": "text" },
+                { "key": "title", "value": "20% Off Family Platter", "type": "text" },
+                { "key": "discountLabel", "value": "20%", "type": "text" },
+                { "key": "description", "value": "Roasted goat, rice & salad.", "type": "text" },
+                { "key": "terms", "value": "Dine-in only. One claim per customer.", "type": "text" },
+                { "key": "startAt", "value": "2026-07-19T00:00:00.000Z", "type": "text", "description": "Optional — defaults to now" },
+                { "key": "endAt", "value": "2026-12-31T23:59:59.000Z", "type": "text" },
+                { "key": "claimLimitPerUser", "value": "1", "type": "text" },
+                { "key": "estimatedValue", "value": "12", "type": "text" },
+                { "key": "offerImage", "type": "file", "src": null, "description": "Optional — single image (jpeg/png/jpg/webp, max 10MB). Stored as offer.coverImage." }
+              ]
+            },
+            "description": "multipart/form-data. Do not set Content-Type manually — Postman sets the multipart boundary automatically."
           }
         },
         {
@@ -803,7 +968,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/offer/get-all?business={{businessId}}&page=1&limit=10",
+              "raw": "{{baseUrl}}/offer/get-all?business={{businessId}}&page=1&limit=10&category={{categoryId}}&searchTerm=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -823,9 +988,20 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "category",
+                  "value": "{{categoryId}}",
+                  "description": "Optional — Category _id; filters offers whose business belongs to this category"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches offer title"
                 }
               ]
-            }
+            },
+            "description": "Public. Always scoped to status=active and endAt in the future, regardless of any status query param."
           }
         },
         {
@@ -862,13 +1038,25 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/offer/my",
+              "raw": "{{baseUrl}}/offer/my?searchTerm=&status=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "offer",
                 "my"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches title"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: active | expired | inactive"
+                }
               ]
             }
           }
@@ -881,10 +1069,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{merchantToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -898,9 +1082,14 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"offerId\": \"{{offerId}}\",\n  \"discountLabel\": \"25%\"\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                { "key": "offerId", "value": "{{offerId}}", "type": "text" },
+                { "key": "discountLabel", "value": "25%", "type": "text" },
+                { "key": "offerImage", "type": "file", "src": null, "description": "Optional — replaces existing offer.coverImage" }
+              ]
+            },
+            "description": "multipart/form-data. Only offerId is required. status enum (optional): active | expired | inactive."
           }
         },
         {
@@ -991,7 +1180,8 @@
                   "value": "active"
                 }
               ]
-            }
+            },
+            "description": "state enum: active | expired (omit the param to get all claims)."
           }
         },
         {
@@ -1019,7 +1209,8 @@
                   "value": "expired"
                 }
               ]
-            }
+            },
+            "description": "state enum: active | expired (omit the param to get all claims)."
           }
         },
         {
@@ -1309,15 +1500,28 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/review/get-all-reviews",
+              "raw": "{{baseUrl}}/review/get-all-reviews?business=&rating=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "review",
                 "get-all-reviews"
+              ],
+              "query": [
+                {
+                  "key": "business",
+                  "value": "",
+                  "description": "Optional — filter by business _id"
+                },
+                {
+                  "key": "rating",
+                  "value": "",
+                  "description": "Optional — exact match, 1-5"
+                }
               ]
-            }
+            },
+            "description": "Non-admin/super_admin callers only ever see their own reviews, regardless of filters."
           }
         },
         {
@@ -1610,9 +1814,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"name\": \"BOGO Pizza Promo\",\n  \"about\": \"Promote our BOGO pizza offer.\",\n  \"videoLengthSec\": 30,\n  \"targetCreators\": 5,\n  \"pricePerClaim\": 5,\n  \"offer\": \"{{offerId}}\"\n}"
+              "raw": "{\n  \"business\": \"{{businessId}}\",\n  \"name\": \"BOGO Pizza Promo\",\n  \"about\": \"Promote our BOGO pizza offer.\",\n  \"objective\": \"offer\",\n  \"contentType\": \"reel\",\n  \"invitedCreator\": \"{{creatorUserId}}\",\n  \"videoLengthSec\": 30,\n  \"targetCreators\": 5,\n  \"offer\": \"{{offerId}}\"\n}"
             },
-            "description": "Requires an active subscription."
+            "description": "objective enum: awareness | traffic | offer | lead_generation. contentType enum: video_ad | product_review | reel | story. invitedCreator is optional (User _id of a specific creator the merchant has in mind — actual task assignment still happens via campaign/admin/assign-creator). videoLengthSec enum: 20 | 30 | 45 | 60 — pricePerClaim is NOT settable here; it's a fixed platform price derived from videoLengthSec (20s=$5, 30s=$7, 45s=$10, 60s=$15). New campaigns always start status=pending_review and need admin approval (campaign/admin/review) before they go live. Note: the subscription-entitlement gate is currently disabled in code (commented out), so no active subscription is required to create a campaign right now."
           }
         },
         {
@@ -1626,13 +1830,25 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/campaign/my",
+              "raw": "{{baseUrl}}/campaign/my?searchTerm=&status=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "campaign",
                 "my"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches name"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: pending_review | live | rejected | paused | completed"
+                }
               ]
             }
           }
@@ -1666,7 +1882,7 @@
           }
         },
         {
-          "name": "Update / go live (merchant)",
+          "name": "Update / pause / complete (merchant)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1691,8 +1907,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"status\": \"live\"\n}"
-            }
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"status\": \"paused\"\n}"
+            },
+            "description": "A merchant may only set status to paused or completed, and only while the campaign is already live — 403 otherwise. Approving/rejecting a pending_review campaign is admin-only (campaign/admin/review). objective enum (if changed): awareness | traffic | offer | lead_generation. contentType enum (if changed): video_ad | product_review | reel | story. invitedCreator (if changed): User _id. videoLengthSec enum (if changed): 20 | 30 | 45 | 60 — changing it re-derives pricePerClaim automatically."
           }
         },
         {
@@ -1706,7 +1923,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/campaign/applications?campaignId={{campaignId}}",
+              "raw": "{{baseUrl}}/campaign/applications?campaignId={{campaignId}}&status=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -1718,38 +1935,13 @@
                 {
                   "key": "campaignId",
                   "value": "{{campaignId}}"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: approved | draft_submitted | verifying | published | rejected. Tasks are created already-approved by an admin (campaign/admin/assign-creator) — there is no 'applied' state."
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Review application (merchant)",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{merchantToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/campaign/review-application",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "campaign",
-                "review-application"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\"\n}"
             }
           }
         },
@@ -1780,7 +1972,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\",\n  \"merchantNote\": \"Looks fantastic \\u2014 approved!\"\n}"
-            }
+            },
+            "description": "action enum: approve | reject. Application must currently be status=draft_submitted."
           }
         },
         {
@@ -1810,7 +2003,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"action\": \"approve\"\n}"
-            }
+            },
+            "description": "action enum: approve | reject. Application must currently be status=verifying."
           }
         },
         {
@@ -1839,6 +2033,119 @@
                 }
               ]
             }
+          }
+        },
+        {
+          "name": "Admin: List campaigns",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/list?status=pending_review&business=&searchTerm=&page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending_review",
+                  "description": "Optional — enum: pending_review | live | rejected | paused | completed"
+                },
+                {
+                  "key": "business",
+                  "value": "",
+                  "description": "Optional — filter by business _id"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches name"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Admin dashboard listing across all merchants — use status=pending_review to find campaigns awaiting approval."
+          }
+        },
+        {
+          "name": "Admin: Review campaign (approve/reject)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "review"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"action\": \"approve\"\n}"
+            },
+            "description": "action enum: approve | reject. Campaign must currently be status=pending_review. On reject, optionally include rejectionReason (defaults to \"Not specified\")."
+          }
+        },
+        {
+          "name": "Admin: Assign creator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/assign-creator",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "assign-creator"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"creatorUserId\": \"{{creatorUserId}}\",\n  \"pitch\": \"Great fit for a food/lifestyle audience.\"\n}"
+            },
+            "description": "creatorUserId is the User _id of an account with role=CREATOR. Campaign must be status=live (already approved). Creates a task already at status=approved — the creator can submit a draft immediately, no self-application step. 409 if this creator is already assigned to the campaign."
           }
         }
       ]
@@ -1925,69 +2232,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"platform\": \"tiktok\",\n  \"handle\": \"@ahmedeats\",\n  \"url\": \"https://tiktok.com/@ahmedeats\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Discover campaigns",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{creatorToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/creator/campaigns?page=1&limit=10",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "creator",
-                "campaigns"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "10"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Apply to campaign",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{creatorToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/creator/apply",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "creator",
-                "apply"
-              ]
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"pitch\": \"My foodie audience would love this.\"\n}"
-            }
+            "description": "platform enum: tiktok | instagram. Re-linking an existing platform updates handle/url."
           }
         },
         {
@@ -2012,10 +2258,12 @@
               "query": [
                 {
                   "key": "status",
-                  "value": ""
+                  "value": "",
+                  "description": "Optional — enum: approved | draft_submitted | verifying | published | rejected"
                 }
               ]
-            }
+            },
+            "description": "Tasks are created by an admin assigning you to a campaign (no self-service apply flow)."
           }
         },
         {
@@ -2156,7 +2404,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 50,\n  \"method\": \"evc\",\n  \"note\": \"Cash out\"\n}"
-            }
+            },
+            "description": "amount must not exceed the sum of available (unpaid) Earning docs. method is free text (e.g. evc, zaad, bank)."
           }
         },
         {
@@ -2170,7 +2419,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/creator/payout/list",
+              "raw": "{{baseUrl}}/creator/payout/list?status=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2178,6 +2427,13 @@
                 "creator",
                 "payout",
                 "list"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: pending | paid | rejected"
+                }
               ]
             }
           }
@@ -2210,7 +2466,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"payoutId\": \"{{payoutId}}\",\n  \"action\": \"approve\"\n}"
-            }
+            },
+            "description": "action enum: approve | reject. Payout must currently be status=pending."
           }
         },
         {
@@ -2234,7 +2491,7 @@
                 }
               ]
             },
-            "description": "Published creator posts for a business \u2014 powers the consumer business-detail 'Creator' tab."
+            "description": "Published creator posts for a business — powers the consumer business-detail 'Creator' tab."
           }
         }
       ]
@@ -2275,7 +2532,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/user/admin/list?role=USER&page=1&limit=10",
+              "raw": "{{baseUrl}}/user/admin/list?role=USER&page=1&limit=10&searchTerm=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2296,9 +2553,15 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches name or email"
                 }
               ]
-            }
+            },
+            "description": "role enum: USER | DRIVER | MERCHANT | CREATOR | ADMIN | SUPER_ADMIN."
           }
         },
         {
@@ -2372,7 +2635,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/merchant/admin/list?page=1&limit=10",
+              "raw": "{{baseUrl}}/merchant/admin/list?page=1&limit=10&searchTerm=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2389,6 +2652,11 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches name or email"
                 }
               ]
             }
@@ -2495,7 +2763,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/business/admin/list?status=&page=1&limit=10",
+              "raw": "{{baseUrl}}/business/admin/list?status=&page=1&limit=10&category=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2516,9 +2784,15 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Optional — Category _id"
                 }
               ]
-            }
+            },
+            "description": "status enum: pending | approved | rejected (leave blank for all)."
           }
         },
         {
@@ -2532,7 +2806,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/offer/admin/list?status=&page=1&limit=10",
+              "raw": "{{baseUrl}}/offer/admin/list?status=&page=1&limit=10&business=&searchTerm=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2553,9 +2827,20 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "business",
+                  "value": "",
+                  "description": "Optional — filter by business _id"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches title"
                 }
               ]
-            }
+            },
+            "description": "status enum: active | expired | inactive (leave blank for all)."
           }
         },
         {
@@ -2569,7 +2854,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/subscription/admin/list?page=1&limit=10",
+              "raw": "{{baseUrl}}/subscription/admin/list?page=1&limit=10&status=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2586,6 +2871,11 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: active | expired | cancelled | none"
                 }
               ]
             }
@@ -2602,7 +2892,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/payment/admin/list?page=1&limit=10",
+              "raw": "{{baseUrl}}/payment/admin/list?page=1&limit=10&merchant=&searchTerm=",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2619,6 +2909,16 @@
                 {
                   "key": "limit",
                   "value": "10"
+                },
+                {
+                  "key": "merchant",
+                  "value": "",
+                  "description": "Optional — filter by merchant (User) _id"
+                },
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Optional — matches transactionId"
                 }
               ]
             }
@@ -2664,13 +2964,25 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/review/get-all-reviews",
+              "raw": "{{baseUrl}}/review/get-all-reviews?business=&rating=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "review",
                 "get-all-reviews"
+              ],
+              "query": [
+                {
+                  "key": "business",
+                  "value": "",
+                  "description": "Optional — filter by business _id"
+                },
+                {
+                  "key": "rating",
+                  "value": "",
+                  "description": "Optional — exact match, 1-5"
+                }
               ]
             }
           }
@@ -2703,7 +3015,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reviewId\": \"{{reviewId}}\",\n  \"action\": \"hide\"\n}"
-            }
+            },
+            "description": "action enum: approve | hide | delete."
           }
         },
         {
@@ -2735,7 +3048,7 @@
               "mode": "raw",
               "raw": "{\n  \"title\": \"New feature live\",\n  \"message\": \"Check out the new deals near you!\",\n  \"audience\": \"USERS\"\n}"
             },
-            "description": "audience: ALL | USERS | MERCHANTS | INFLUENCERS"
+            "description": "audience enum (case-insensitive, optional, default ALL): ALL | USERS | MERCHANTS | INFLUENCERS | CREATORS. Any unrecognized value silently falls back to ALL."
           }
         },
         {
@@ -2749,13 +3062,20 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/feedback/get-all-feedbacks",
+              "raw": "{{baseUrl}}/feedback/get-all-feedbacks?status=",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "feedback",
                 "get-all-feedbacks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": "Optional — enum: open | replied"
+                }
               ]
             }
           }
@@ -2923,10 +3243,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{adminToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -2940,9 +3256,32 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"Mogadishu\",\n  \"phoneNumber\": \"+252610000000\"\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Admin Name",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Mogadishu",
+                  "type": "text"
+                },
+                {
+                  "key": "phoneNumber",
+                  "value": "+252610000000",
+                  "type": "text"
+                },
+                {
+                  "key": "profile_image",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — single image (jpeg/png/jpg/webp, max 10MB)"
+                }
+              ]
+            },
+            "description": "multipart/form-data. All fields optional; only these three text fields + profile_image are applied by the service."
           }
         },
         {
@@ -3010,10 +3349,6 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{userToken}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
             "url": {
@@ -3027,9 +3362,43 @@
               ]
             },
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Mohamed Ali\",\n  \"address\": \"Mogadishu\"\n}"
-            }
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Mohamed Ali",
+                  "type": "text"
+                },
+                {
+                  "key": "dateOfBirth",
+                  "value": "1995-04-12",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "Mogadishu",
+                  "type": "text"
+                },
+                {
+                  "key": "phoneNumber",
+                  "value": "+252612345678",
+                  "type": "text"
+                },
+                {
+                  "key": "language",
+                  "value": "so",
+                  "type": "text",
+                  "description": "Enum: en | so | ar"
+                },
+                {
+                  "key": "profile_image",
+                  "type": "file",
+                  "src": null,
+                  "description": "Optional — single image (jpeg/png/jpg/webp, max 10MB)"
+                }
+              ]
+            },
+            "description": "multipart/form-data. All fields optional — falsy/omitted fields are left unchanged."
           }
         },
         {
@@ -3273,7 +3642,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/chat/get-chat-messages?chatId={{chatId}}",
+              "raw": "{{baseUrl}}/chat/get-chat-messages?chatId={{chatId}}&page=1&limit=10",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -3285,9 +3654,18 @@
                 {
                   "key": "chatId",
                   "value": "{{chatId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
                 }
               ]
-            }
+            },
+            "description": "page/limit paginate the messages array within the chat (not a QueryBuilder list)."
           }
         },
         {
@@ -3442,8 +3820,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"By using SomSpot you agree to ...\"\n}"
-            }
+              "raw": "{\n  \"description\": \"By using SomSpot you agree to ...\"\n}"
+            },
+            "description": "Singleton upsert — the schema's only field is `description` (not `content`). Calling this again replaces the existing doc."
           }
         },
         {
@@ -3474,15 +3853,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/manage/delete-terms-conditions",
+              "raw": "{{baseUrl}}/manage/delete-terms-conditions?id={{manageDocId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "manage",
                 "delete-terms-conditions"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manageDocId}}",
+                  "description": "Required — copy the _id from the matching Get response"
+                }
               ]
-            }
+            },
+            "description": "id is required (read from req.query)."
           }
         },
         {
@@ -3511,8 +3898,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"We respect your privacy ...\"\n}"
-            }
+              "raw": "{\n  \"description\": \"We respect your privacy ...\"\n}"
+            },
+            "description": "Singleton upsert — the schema's only field is `description` (not `content`). Calling this again replaces the existing doc."
           }
         },
         {
@@ -3543,15 +3931,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/manage/delete-privacy-policy",
+              "raw": "{{baseUrl}}/manage/delete-privacy-policy?id={{manageDocId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "manage",
                 "delete-privacy-policy"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manageDocId}}",
+                  "description": "Required — copy the _id from the matching Get response"
+                }
               ]
-            }
+            },
+            "description": "id is required (read from req.query)."
           }
         },
         {
@@ -3580,8 +3976,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"SomSpot helps you discover local deals across Somalia.\"\n}"
-            }
+              "raw": "{\n  \"description\": \"SomSpot helps you discover local deals across Somalia.\"\n}"
+            },
+            "description": "Singleton upsert — the schema's only field is `description` (not `content`). Calling this again replaces the existing doc."
           }
         },
         {
@@ -3612,15 +4009,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/manage/delete-about-us",
+              "raw": "{{baseUrl}}/manage/delete-about-us?id={{manageDocId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "manage",
                 "delete-about-us"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manageDocId}}",
+                  "description": "Required — copy the _id from the matching Get response"
+                }
               ]
-            }
+            },
+            "description": "id is required (read from req.query)."
           }
         },
         {
@@ -3649,8 +4054,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"contact@somspot.so\"\n}"
-            }
+              "raw": "{\n  \"description\": \"contact@somspot.so\"\n}"
+            },
+            "description": "Singleton upsert — the schema's only field is `description` (not `content`). Calling this again replaces the existing doc."
           }
         },
         {
@@ -3681,15 +4087,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/manage/delete-contact-us",
+              "raw": "{{baseUrl}}/manage/delete-contact-us?id={{manageDocId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "manage",
                 "delete-contact-us"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manageDocId}}",
+                  "description": "Required — copy the _id from the matching Get response"
+                }
               ]
-            }
+            },
+            "description": "id is required (read from req.query)."
           }
         },
         {
@@ -3718,8 +4132,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"How do I claim an offer?\"\n}"
-            }
+              "raw": "{\n  \"description\": \"How do I claim an offer?\"\n}"
+            },
+            "description": "Singleton upsert — the schema's only field is `description` (not `content`). Calling this again replaces the existing doc."
           }
         },
         {
@@ -3750,15 +4165,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/manage/delete-faq",
+              "raw": "{{baseUrl}}/manage/delete-faq?id={{manageDocId}}",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "manage",
                 "delete-faq"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{manageDocId}}",
+                  "description": "Required — copy the _id from the matching Get response"
+                }
               ]
-            }
+            },
+            "description": "id is required (read from req.query)."
           }
         }
       ]

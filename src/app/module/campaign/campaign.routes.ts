@@ -12,8 +12,11 @@ router
   .patch("/update", auth(config.auth_level.merchant), CampaignController.updateCampaign)
   .delete("/delete", auth(config.auth_level.merchant), CampaignController.deleteCampaign)
   .get("/applications", auth(config.auth_level.merchant), CampaignController.getApplications)
-  .patch("/review-application", auth(config.auth_level.merchant), CampaignController.reviewApplication)
   .patch("/review-draft", auth(config.auth_level.merchant), CampaignController.reviewDraft)
-  .patch("/verify-publication", auth(config.auth_level.merchant), CampaignController.verifyPublication);
+  .patch("/verify-publication", auth(config.auth_level.merchant), CampaignController.verifyPublication)
+  // ---- admin ----
+  .get("/admin/list", auth(config.auth_level.admin), CampaignController.adminGetAll)
+  .patch("/admin/review", auth(config.auth_level.admin), CampaignController.reviewCampaign)
+  .post("/admin/assign-creator", auth(config.auth_level.admin), CampaignController.assignCreator);
 
 export = router;

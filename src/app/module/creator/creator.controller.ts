@@ -22,16 +22,6 @@ const linkSocial = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Account linked", data: result });
 });
 
-const getMarketplace = catchAsync(async (req: Request, res: Response) => {
-  const result = await CreatorService.getMarketplace(req.query as QueryParams);
-  sendResponse(res, { statusCode: 200, success: true, message: "Campaigns retrieved", data: result });
-});
-
-const applyToCampaign = catchAsync(async (req: Request, res: Response) => {
-  const result = await CreatorService.applyToCampaign(getAuthUser(req), req.body);
-  sendResponse(res, { statusCode: 201, success: true, message: "Applied to campaign", data: result });
-});
-
 const getMyTasks = catchAsync(async (req: Request, res: Response) => {
   const result = await CreatorService.getMyTasks(getAuthUser(req), req.query as QueryParams);
   sendResponse(res, { statusCode: 200, success: true, message: "Tasks retrieved", data: result });
@@ -83,8 +73,6 @@ const CreatorController = {
   updateProfile,
   getBusinessContent,
   linkSocial,
-  getMarketplace,
-  applyToCampaign,
   getMyTasks,
   getTask,
   submitDraft,

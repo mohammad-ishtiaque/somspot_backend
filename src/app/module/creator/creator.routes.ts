@@ -12,10 +12,7 @@ router
   .get("/profile", auth(config.auth_level.creator), CreatorController.getMyProfile)
   .patch("/profile", auth(config.auth_level.creator), CreatorController.updateProfile)
   .post("/link-social", auth(config.auth_level.creator), CreatorController.linkSocial)
-  // marketplace + applications
-  .get("/campaigns", auth(config.auth_level.creator), CreatorController.getMarketplace)
-  .post("/apply", auth(config.auth_level.creator), CreatorController.applyToCampaign)
-  // tasks
+  // tasks — assigned by an admin (campaign/admin/assign-creator), not self-applied
   .get("/tasks", auth(config.auth_level.creator), CreatorController.getMyTasks)
   .get("/task", auth(config.auth_level.creator), CreatorController.getTask)
   .patch("/submit-draft", auth(config.auth_level.creator), CreatorController.submitDraft)

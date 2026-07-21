@@ -2,7 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import mongoose from "mongoose";
 import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler";
 import { CreatorService } from "./creator.service";
+import { CampaignService } from "../campaign/campaign.service";
 import Campaign from "../campaign/Campaign";
+import Auth from "../auth/Auth";
 import Earning from "./Earning";
 import { EnumCampaignStatus, EnumUserRole } from "../../../util/enum";
 
@@ -22,11 +24,12 @@ const makeLiveCampaign = () =>
   });
 
 describe("CreatorService", () => {
-  it("applies to a live campaign once", async () => {
+  it("lists tasks an admin assigned to the creator", async () => {
+    await Auth.create({ _id: creator.userId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
     const c = await makeLiveCampaign();
-    const app = await CreatorService.applyToCampaign(creator as any, { campaignId: String(c._id) });
-    expect(app.status).toBe("applied");
-    await expect(CreatorService.applyToCampaign(creator as any, { campaignId: String(c._id) })).rejects.toThrow();
+    await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creator.userId } as any);
+    const { result } = await CreatorService.getMyTasks(creator as any, {});
+    expect(result).toHaveLength(1);
   });
 
   it("aggregates the wallet balance from earnings", async () => {

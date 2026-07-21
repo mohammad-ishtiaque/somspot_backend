@@ -69,17 +69,36 @@ const EnumClaimStatus = {
   EXPIRED: "expired",
 };
 
-// Influencer campaign lifecycle
+// Influencer campaign lifecycle: submitted campaigns wait for admin approval
+// (pending_review) before creators can be assigned (live); merchant can pause
+// or complete a live campaign; admin can reject a pending one.
 const EnumCampaignStatus = {
-  DRAFT: "draft",
+  PENDING_REVIEW: "pending_review",
   LIVE: "live",
+  REJECTED: "rejected",
   PAUSED: "paused",
   COMPLETED: "completed",
 };
 
-// Creator task/application lifecycle (Figma: applied -> approved -> submitted -> verifying -> published/rejected)
+// What the campaign is meant to achieve (Figma: New Campaign > Objective)
+const EnumCampaignObjective = {
+  AWARENESS: "awareness",
+  TRAFFIC: "traffic",
+  OFFER: "offer",
+  LEAD_GENERATION: "lead_generation",
+};
+
+// The format of content creators should produce (Figma: New Campaign > Content Type)
+const EnumCampaignContentType = {
+  VIDEO_AD: "video_ad",
+  PRODUCT_REVIEW: "product_review",
+  REEL: "reel",
+  STORY: "story",
+};
+
+// Creator task lifecycle — created already-approved via campaign/admin/assign-creator
+// (no self-service "applied" state): approved -> draft_submitted -> verifying -> published/rejected
 const EnumTaskStatus = {
-  APPLIED: "applied",
   APPROVED: "approved",
   DRAFT_SUBMITTED: "draft_submitted",
   VERIFYING: "verifying",
@@ -129,6 +148,8 @@ export {
   EnumOfferStatus,
   EnumClaimStatus,
   EnumCampaignStatus,
+  EnumCampaignObjective,
+  EnumCampaignContentType,
   EnumTaskStatus,
   EnumSubscriptionStatus,
   EnumPayoutStatus,

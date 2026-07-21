@@ -32,14 +32,24 @@ const deleteCampaign = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Campaign deleted", data: result });
 });
 
+const reviewCampaign = catchAsync(async (req: Request, res: Response) => {
+  const result = await CampaignService.reviewCampaign(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Campaign reviewed", data: result });
+});
+
+const assignCreator = catchAsync(async (req: Request, res: Response) => {
+  const result = await CampaignService.assignCreator(req.body);
+  sendResponse(res, { statusCode: 201, success: true, message: "Creator assigned", data: result });
+});
+
+const adminGetAll = catchAsync(async (req: Request, res: Response) => {
+  const result = await CampaignService.adminGetAll(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Campaigns retrieved", data: result });
+});
+
 const getApplications = catchAsync(async (req: Request, res: Response) => {
   const result = await CampaignService.getApplications(getAuthUser(req), req.query as QueryParams);
   sendResponse(res, { statusCode: 200, success: true, message: "Applications retrieved", data: result });
-});
-
-const reviewApplication = catchAsync(async (req: Request, res: Response) => {
-  const result = await CampaignService.reviewApplication(getAuthUser(req), req.body);
-  sendResponse(res, { statusCode: 200, success: true, message: "Application reviewed", data: result });
 });
 
 const reviewDraft = catchAsync(async (req: Request, res: Response) => {
@@ -58,8 +68,10 @@ const CampaignController = {
   getCampaign,
   updateCampaign,
   deleteCampaign,
+  reviewCampaign,
+  assignCreator,
+  adminGetAll,
   getApplications,
-  reviewApplication,
   reviewDraft,
   verifyPublication,
 };

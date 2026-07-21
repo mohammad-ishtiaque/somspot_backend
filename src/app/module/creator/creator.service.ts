@@ -3,7 +3,6 @@ import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import {
-  EnumCampaignStatus,
   EnumPayoutStatus,
   EnumTaskStatus,
 } from "../../../util/enum";
@@ -60,45 +59,9 @@ const linkSocial = async (
   return doc;
 };
 
-// ---------------- Campaign marketplace ----------------
-
-const getMarketplace = async (query: QueryParams) => {
-  const { meta, result } = await new QueryBuilder(
-    Campaign.find({ status: EnumCampaignStatus.LIVE })
-      .populate([
-        { path: "business", select: "name logo address" },
-        { path: "offer", select: "title discountLabel" },
-      ])
-      .lean(),
-    query,
-  ).execute(["name"]);
-  return { meta, result };
-};
-
-const applyToCampaign = async (
-  userData: AuthUserPayload,
-  payload: { campaignId?: string; pitch?: string },
-) => {
-  validateFields(payload, ["campaignId"]);
-  const campaign = await Campaign.findById(payload.campaignId);
-  if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
-  if (campaign.status !== EnumCampaignStatus.LIVE)
-    throw new ApiError(status.BAD_REQUEST, "Campaign is not accepting applications");
-
-  const exists = await CampaignApplication.findOne({
-    campaign: campaign._id,
-    creator: userData.userId,
-  });
-  if (exists) throw new ApiError(status.CONFLICT, "You already applied to this campaign");
-
-  return CampaignApplication.create({
-    campaign: campaign._id,
-    creator: userData.userId,
-    pitch: payload.pitch,
-  });
-};
-
 // ---------------- Creator tasks ----------------
+// Tasks originate from an admin assigning a creator to a live campaign
+// (campaign/admin/assign-creator) — there is no self-service marketplace.
 
 const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
   const base: Record<string, unknown> = { creator: userData.userId };
@@ -286,8 +249,6 @@ const CreatorService = {
   updateProfile,
   getBusinessContent,
   linkSocial,
-  getMarketplace,
-  applyToCampaign,
   getMyTasks,
   getTask,
   submitDraft,

@@ -1,8 +1,9 @@
 import { Schema, model, Types } from "mongoose";
 import { EnumTaskStatus } from "../../../util/enum";
 
-// A creator's participation in a campaign — carries the whole task lifecycle:
-// applied -> approved -> draft_submitted -> verifying -> published (or rejected).
+// A creator's participation in a campaign — created already-approved by an
+// admin (campaign/admin/assign-creator), then carries the task lifecycle:
+// approved -> draft_submitted -> verifying -> published (or rejected).
 export interface ICampaignApplication {
   _id: Types.ObjectId;
   campaign: Types.ObjectId;
@@ -29,7 +30,7 @@ const applicationSchema = new Schema<ICampaignApplication>(
     status: {
       type: String,
       enum: Object.values(EnumTaskStatus),
-      default: EnumTaskStatus.APPLIED,
+      default: EnumTaskStatus.APPROVED,
     },
     pitch: { type: String },
     draftVideoUrl: { type: String },

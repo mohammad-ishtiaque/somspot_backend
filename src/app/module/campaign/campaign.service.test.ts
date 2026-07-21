@@ -4,8 +4,8 @@ import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler
 import { CampaignService } from "./campaign.service";
 import Business from "../business/Business";
 import Subscription from "../subscription/Subscription";
-import CampaignApplication from "../creator/CampaignApplication";
-import { EnumBusinessStatus, EnumSubscriptionStatus, EnumUserRole } from "../../../util/enum";
+import Auth from "../auth/Auth";
+import { EnumBusinessStatus, EnumCampaignStatus, EnumSubscriptionStatus, EnumUserRole } from "../../../util/enum";
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -19,23 +19,34 @@ const setupEntitledMerchant = async () => {
 };
 
 describe("CampaignService", () => {
-  it("blocks campaign creation without an active subscription", async () => {
-    const b = await Business.create({ owner: merchant.userId, name: "Shop", category: new mongoose.Types.ObjectId() });
-    await expect(CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "X" })).rejects.toThrow();
-  });
-
-  it("creates a campaign for an entitled merchant", async () => {
+  it("creates a campaign pending review, with price derived from videoLengthSec", async () => {
     const b = await setupEntitledMerchant();
-    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO", pricePerClaim: 5 });
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO", videoLengthSec: 45 });
     expect(c.name).toBe("BOGO");
+    expect(c.status).toBe(EnumCampaignStatus.PENDING_REVIEW);
+    expect(c.pricePerClaim).toBe(10); // 45s tier
   });
 
-  it("approves a creator application and sets the commission", async () => {
+  it("blocks a merchant from setting status directly to live", async () => {
     const b = await setupEntitledMerchant();
-    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO", pricePerClaim: 7 });
-    const app = await CampaignApplication.create({ campaign: c._id, creator: new mongoose.Types.ObjectId() });
-    const reviewed = await CampaignService.reviewApplication(merchant as any, { applicationId: String(app._id), action: "approve" });
-    expect(reviewed.status).toBe("approved");
-    expect(reviewed.commissionAmount).toBe(7);
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO" });
+    await expect(
+      CampaignService.updateCampaign(merchant as any, { campaignId: String(c._id), status: "live" }),
+    ).rejects.toThrow();
+  });
+
+  it("admin approves a pending campaign, then assigns a creator with the derived commission", async () => {
+    const b = await setupEntitledMerchant();
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO", videoLengthSec: 30 });
+
+    const approved = await CampaignService.reviewCampaign({ campaignId: String(c._id), action: "approve" });
+    expect(approved.status).toBe(EnumCampaignStatus.LIVE);
+
+    const creatorId = new mongoose.Types.ObjectId().toString();
+    await Auth.create({ _id: creatorId, name: "Creator", email: "creator2@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+
+    const app = await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creatorId });
+    expect(app.status).toBe("approved");
+    expect(app.commissionAmount).toBe(7); // 30s tier
   });
 });

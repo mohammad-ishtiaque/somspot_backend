@@ -6,6 +6,7 @@ export interface IOffer {
   business: Types.ObjectId;
   title: string;
   description?: string;
+  offerImage?: string;
   discountLabel?: string; // e.g. "20%", "Buy 1 Get 1"
   terms?: string;
   startAt?: Date;
@@ -24,6 +25,7 @@ const offerSchema = new Schema<IOffer>(
     business: { type: Schema.Types.ObjectId, ref: "Business", required: true },
     title: { type: String, required: true, trim: true },
     description: { type: String },
+    offerImage: { type: String },
     discountLabel: { type: String },
     terms: { type: String },
     startAt: { type: Date, default: Date.now },

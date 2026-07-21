@@ -19,6 +19,7 @@ const FIELD_RULES: Record<string, FieldRule> = {
   logo: { maxCount: 1, mimeTypes: IMAGE },
   coverImage: { maxCount: 1, mimeTypes: IMAGE },
   gallery: { maxCount: 8, mimeTypes: IMAGE },
+  offerImage: { maxCount: 1, mimeTypes: IMAGE }
 };
 
 const createDirIfNotExists = (uploadPath: string): void => {

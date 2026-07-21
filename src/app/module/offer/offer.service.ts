@@ -31,6 +31,7 @@ const createOffer = async (userData: AuthUserPayload, payload: Record<string, an
     business: payload.business,
     title: payload.title,
     description: payload.description,
+    offerImage: payload.offerImage,
     discountLabel: payload.discountLabel,
     terms: payload.terms,
     startAt: payload.startAt,
@@ -89,7 +90,7 @@ const updateOffer = async (userData: AuthUserPayload, payload: Record<string, an
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
   await assertOwnsBusiness(userData, String(offer.business));
 
-  const fields = ["title", "description", "discountLabel", "terms", "startAt", "endAt", "status", "claimLimitPerUser", "estimatedValue"];
+  const fields = ["title", "description", "offerImage", "discountLabel", "terms", "startAt", "endAt", "status", "claimLimitPerUser", "estimatedValue"];
   for (const f of fields) if (payload[f] !== undefined) (offer as any)[f] = payload[f];
   await offer.save();
   return offer;

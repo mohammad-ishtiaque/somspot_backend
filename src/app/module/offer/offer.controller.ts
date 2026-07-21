@@ -6,9 +6,16 @@ import catchAsync from "../../../util/catchAsync";
 import { QueryParams } from "../../../builder/queryBuilder";
 import ApiError from "../../../error/ApiError";
 
+const buildOfferPayload = (req: Request): Record<string, unknown> => {
+  const body: Record<string, any> = { ...req.body };
+  const files = (req.files || {}) as Record<string, Express.Multer.File[]>;
+  if (files.offerImage?.[0]) body.offerImage = files.offerImage[0].path;
+  return body;
+};
+
 const createOffer = catchAsync(async (req: Request, res: Response) => {
   if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
-  const result = await OfferService.createOffer(req.user, req.body);
+  const result = await OfferService.createOffer(req.user, buildOfferPayload(req));
   sendResponse(res, { statusCode: 201, success: true, message: "Offer created", data: result });
 });
 

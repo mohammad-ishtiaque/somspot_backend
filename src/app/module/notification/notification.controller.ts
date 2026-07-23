@@ -31,8 +31,7 @@ const getAllNotifications = catchAsync(async (req: Request, res: Response) => {
     statusCode: 200,
     success: true,
     message: "Notifications retrieved",
-    meta: result.meta,
-    data: result.notifications,
+    data: result,
   });
 });
 

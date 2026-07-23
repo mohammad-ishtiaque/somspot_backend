@@ -12,16 +12,16 @@ import auth from "../../middleware/auth";
 import Auth from "./Auth";
 
 const registrationAccount = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.registrationAccount(req.body);
+  const { message, ...data } = await AuthService.registrationAccount(req.body);
 
   const isSuccess =
-    result.message === "Account created successfully. Please check your email";
+    message === "Account created successfully. Please check your email";
 
   sendResponse(res, {
     statusCode: isSuccess ? 200 : 400,
     success: isSuccess,
-    message: result.message || "Something went wrong",
-    data: result,
+    message: message || "Something went wrong",
+    data,
   });
 });
 

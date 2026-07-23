@@ -11,7 +11,6 @@ const sendResponse = <T>(res: Response, data: ApiResponse<T>): void => {
     ...(data.activationToken != null && {
       activationToken: data.activationToken,
     }),
-    ...(data.meta != null && { meta: data.meta }),
     ...(data.data != null && { data: data.data }),
   };
 

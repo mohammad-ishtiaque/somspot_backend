@@ -49,27 +49,27 @@ const getAllNotifications = async (
   const { role, userId } = userData;
 
   if (role === EnumUserRole.ADMIN) {
-    const { meta, result: notifications } = await new QueryBuilder(
+    const { meta, result } = await new QueryBuilder(
     AdminNotification.find().lean(),
     query,
   ).execute([]);
 
-    if (!notifications) {
+    if (!result) {
       throw new ApiError(status.NOT_FOUND, "Notifications not found");
     }
 
-    return { meta, notifications };
+    return { meta, result };
   } else {
-    const { meta, result: notifications } = await new QueryBuilder(
+    const { meta, result } = await new QueryBuilder(
     Notification.find({ toId: userId }).lean(),
     query,
   ).execute([]);
 
-    if (!notifications) {
+    if (!result) {
       throw new ApiError(status.NOT_FOUND, "Notifications not found");
     }
 
-    return { meta, notifications };
+    return { meta, result };
   }
 };
 

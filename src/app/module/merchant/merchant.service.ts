@@ -7,9 +7,11 @@ import {
 } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "../business/Business";
+import BusinessView from "../business/BusinessView";
 import Offer from "../offer/Offer";
 import Claim from "../claim/Claim";
 import Campaign from "../campaign/Campaign";
+import Notification from "../notification/Notification";
 import Auth from "../auth/Auth";
 import User from "../user/User";
 import Subscription from "../subscription/Subscription";
@@ -18,28 +20,90 @@ import validateFields from "../../../util/validateFields";
 import { EnumUserRole } from "../../../util/enum";
 const { status } = require("http-status");
 
-// Merchant home dashboard (Figma: Active Offers, Est. Revenue, Influencer Campaigns).
+// Merchant home dashboard (Figma: greeting/notifications, Overview, Influencer
+// Campaigns banner, Activity Summary, Top Deals, Recent Claims). One call for
+// the whole screen.
 const getDashboard = async (userData: AuthUserPayload) => {
-  const businesses = await Business.find({ owner: userData.userId })
-    .select("_id name status")
-    .lean();
+  const [businesses, campaigns, merchantProfile] = await Promise.all([
+    Business.find({ owner: userData.userId })
+      .select("_id name status address")
+      .lean(),
+    Campaign.find({ merchant: userData.userId }).select("_id status").lean(),
+    User.findById(userData.userId).select("name profile_image").lean(),
+  ]);
   const ids = businesses.map((b) => b._id);
+  const liveCampaigns = campaigns.filter((c) => c.status === EnumCampaignStatus.LIVE).length;
+  const campaignStatus = {
+    inReview: campaigns.filter((c) => c.status === EnumCampaignStatus.PENDING_REVIEW).length,
+    active: liveCampaigns,
+  };
 
-  const [activeOffers, totalClaims, redeemedClaims, liveCampaigns, revenueAgg] =
-    await Promise.all([
-      Offer.countDocuments({ business: { $in: ids }, status: EnumOfferStatus.ACTIVE, endAt: { $gt: new Date() } }),
-      Claim.countDocuments({ business: { $in: ids } }),
-      Claim.countDocuments({ business: { $in: ids }, status: EnumClaimStatus.REDEEMED }),
-      Campaign.countDocuments({ merchant: userData.userId, status: EnumCampaignStatus.LIVE }),
-      Claim.aggregate([
-        { $match: { business: { $in: ids }, status: EnumClaimStatus.REDEEMED } },
-        { $lookup: { from: "offers", localField: "offer", foreignField: "_id", as: "offer" } },
-        { $unwind: "$offer" },
-        { $group: { _id: null, total: { $sum: "$offer.estimatedValue" } } },
-      ]),
-    ]);
+  // The primary business shown in the header — the first approved one, or
+  // just the first business if none are approved yet.
+  const primaryBusiness =
+    businesses.find((b) => b.status === EnumBusinessStatus.APPROVED) || businesses[0] || null;
+
+  const [
+    activeOffers,
+    totalClaims,
+    redeemedClaims,
+    revenueAgg,
+    unreadNotifications,
+    recentClaims,
+    topDeals,
+    totalViews,
+    uniqueViewerAgg,
+  ] = await Promise.all([
+    Offer.countDocuments({ business: { $in: ids }, status: EnumOfferStatus.ACTIVE, endAt: { $gt: new Date() } }),
+    Claim.countDocuments({ business: { $in: ids } }),
+    Claim.countDocuments({ business: { $in: ids }, status: EnumClaimStatus.REDEEMED }),
+    Claim.aggregate([
+      { $match: { business: { $in: ids }, status: EnumClaimStatus.REDEEMED } },
+      { $lookup: { from: "offers", localField: "offer", foreignField: "_id", as: "offer" } },
+      { $unwind: "$offer" },
+      { $group: { _id: null, total: { $sum: "$offer.estimatedValue" } } },
+    ]),
+    Notification.countDocuments({ toId: userData.userId, isRead: false }),
+    Claim.find({ business: { $in: ids } })
+      .sort({ claimedAt: -1 })
+      .limit(5)
+      .populate([
+        { path: "user", select: "name" },
+        { path: "offer", select: "title discountLabel" },
+      ])
+      .lean(),
+    Offer.find({ business: { $in: ids } })
+      .sort({ totalClaims: -1 })
+      .limit(5)
+      .select("title discountLabel totalClaims business")
+      .populate([{ path: "business", select: "name" }])
+      .lean(),
+    BusinessView.countDocuments({ business: { $in: ids } }),
+    // Distinct viewer (logged-in id, else guest ip) across all-time views.
+    BusinessView.aggregate([
+      { $match: { business: { $in: ids } } },
+      { $group: { _id: { $ifNull: ["$viewer", "$ip"] } } },
+      { $count: "count" },
+    ]),
+  ]);
+
+  const uniqueUsers = uniqueViewerAgg[0]?.count || 0;
+  // Engagement: share of views that turned into a claim. Bounce rate: the
+  // rest — views that didn't. There's no page/session tracking to measure a
+  // "true" bounce rate, so this is the closest meaningful proxy available.
+  const engagementRate = totalViews > 0 ? Math.round((totalClaims / totalViews) * 100) : 0;
+  const bounceRate = totalViews > 0 ? 100 - engagementRate : 0;
 
   return {
+    merchant: {
+      name: merchantProfile?.name,
+      profileImage: merchantProfile?.profile_image,
+    },
+    primaryBusiness: primaryBusiness
+      ? { name: primaryBusiness.name, address: primaryBusiness.address }
+      : null,
+    unreadNotifications,
+    campaignStatus,
     businessCount: businesses.length,
     approved: businesses.filter((b) => b.status === EnumBusinessStatus.APPROVED).length,
     pending: businesses.filter((b) => b.status === EnumBusinessStatus.PENDING).length,
@@ -48,6 +112,25 @@ const getDashboard = async (userData: AuthUserPayload) => {
     redeemedClaims,
     liveCampaigns,
     estRevenue: revenueAgg[0]?.total || 0,
+    totalViews,
+    activitySummary: {
+      visitors: totalViews,
+      uniqueUsers,
+      engagementRate,
+      bounceRate,
+    },
+    topDeals: topDeals.map((o: any) => ({
+      title: o.title,
+      discountLabel: o.discountLabel,
+      businessName: o.business?.name,
+      totalClaims: o.totalClaims,
+    })),
+    recentClaims: recentClaims.map((c: any) => ({
+      offerTitle: c.offer?.title,
+      discountLabel: c.offer?.discountLabel,
+      claimedBy: c.user?.name,
+      claimedAt: c.claimedAt,
+    })),
   };
 };
 

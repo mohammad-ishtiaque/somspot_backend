@@ -6,6 +6,7 @@ import validateFields from "../../../util/validateFields";
 import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
+import BusinessView from "./BusinessView";
 const tzlookup = require("tz-lookup");
 
 // Resolve an IANA timezone dynamically: an explicit value wins; otherwise
@@ -142,7 +143,11 @@ const getTrending = async (query: QueryParams) => {
   return result.map(withOpen);
 };
 
-const getBusiness = async (userData: AuthUserPayload | undefined, query: { businessId?: string }) => {
+const getBusiness = async (
+  userData: AuthUserPayload | undefined,
+  query: { businessId?: string },
+  viewerIp?: string,
+) => {
   validateFields(query, ["businessId"]);
   const business = await Business.findById(query.businessId)
     .populate([{ path: "category", select: "name slug icon" }])
@@ -150,11 +155,18 @@ const getBusiness = async (userData: AuthUserPayload | undefined, query: { busin
   if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
 
   // Non-approved businesses are only visible to their owner or an admin.
-  const canView =
-    business.status === EnumBusinessStatus.APPROVED ||
-    (userData &&
-      (isPrivileged(userData.role) || String(business.owner) === userData.userId));
+  const isOwnerOrAdmin =
+    !!userData &&
+    (isPrivileged(userData.role) || String(business.owner) === userData.userId);
+  const canView = business.status === EnumBusinessStatus.APPROVED || isOwnerOrAdmin;
   if (!canView) throw new ApiError(status.NOT_FOUND, "Business not found");
+
+  // Fire-and-forget: log real customer views for the merchant dashboard's
+  // Activity Summary. Skip the owner/admin browsing their own listing so
+  // that doesn't inflate the merchant's own analytics.
+  if (!isOwnerOrAdmin) {
+    BusinessView.create({ business: business._id, viewer: userData?.userId, ip: viewerIp }).catch(() => {});
+  }
 
   return withOpen(business);
 };

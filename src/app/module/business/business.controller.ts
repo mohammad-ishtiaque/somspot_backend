@@ -60,7 +60,7 @@ const getTrending = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getBusiness = catchAsync(async (req: Request, res: Response) => {
-  const result = await BusinessService.getBusiness(req.user, req.query);
+  const result = await BusinessService.getBusiness(req.user, req.query, req.ip);
   sendResponse(res, {
     statusCode: 200,
     success: true,

@@ -2,6 +2,7 @@ const { status } = require("http-status");
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
+import unlinkFile from "../../../util/unlinkFile";
 import Category from "./Category";
 
 const slugify = (value: string) =>
@@ -48,12 +49,19 @@ const updateCategory = async (payload: Record<string, unknown>) => {
     ...(payload.isActive !== undefined && { isActive: payload.isActive }),
   };
 
+  const existing = payload.icon !== undefined
+    ? await Category.findById(payload.categoryId).select("icon").lean()
+    : null;
+
   const result = await Category.findByIdAndUpdate(
     payload.categoryId,
     { $set: updateData },
     { returnDocument: "after", runValidators: true },
   );
   if (!result) throw new ApiError(status.NOT_FOUND, "Category not found");
+
+  if (existing?.icon && existing.icon !== payload.icon) unlinkFile(existing.icon);
+
   return result;
 };
 

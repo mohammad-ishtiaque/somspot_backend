@@ -4,8 +4,15 @@ import sendResponse from "../../../util/sendResponse";
 import catchAsync from "../../../util/catchAsync";
 import { QueryParams } from "../../../builder/queryBuilder";
 
+const buildCategoryPayload = (req: Request): Record<string, unknown> => {
+  const body: Record<string, any> = { ...req.body };
+  const files = (req.files || {}) as Record<string, Express.Multer.File[]>;
+  if (files.icon?.[0]) body.icon = files.icon[0].path;
+  return body;
+};
+
 const createCategory = catchAsync(async (req: Request, res: Response) => {
-  const result = await CategoryService.createCategory(req.body);
+  const result = await CategoryService.createCategory(buildCategoryPayload(req));
   sendResponse(res, {
     statusCode: 201,
     success: true,
@@ -37,7 +44,7 @@ const getCategory = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateCategory = catchAsync(async (req: Request, res: Response) => {
-  const result = await CategoryService.updateCategory(req.body);
+  const result = await CategoryService.updateCategory(buildCategoryPayload(req));
   sendResponse(res, {
     statusCode: 200,
     success: true,

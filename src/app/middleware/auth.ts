@@ -8,7 +8,7 @@ import type { AuthUserPayload } from "../../types/auth.types";
 
 const auth =
   (roles: string[], isAccessible = true) =>
-  async (req: Request, _res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
       const tokenWithBearer = req.headers.authorization;
       if (!tokenWithBearer && !isAccessible) return next();
@@ -36,6 +36,14 @@ const auth =
       const isExist = await Auth.findById(verifyUser.authId);
       if (!isExist) {
         throw new ApiError(httpStatus.UNAUTHORIZED, "You are not authorized");
+      }
+
+      // This request didn't explicitly ask for a language (see locale
+      // middleware) — use the signed-in user's saved preference instead of
+      // the accept-language/English default so every route respects it.
+      if (res.locals.languageIsDefault && isExist.language) {
+        req.language = isExist.language;
+        res.locals.language = isExist.language;
       }
 
       if (roles.length && !roles.includes(verifyUser.role)) {

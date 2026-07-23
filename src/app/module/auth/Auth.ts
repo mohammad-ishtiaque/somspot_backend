@@ -105,6 +105,7 @@ AuthSchema.statics.isAuthExist = async function (email: string) {
       email: 1,
       password: 1,
       role: 1,
+      language: 1,
       isActive: 1,
       isBlocked: 1,
       isVerified: 1,

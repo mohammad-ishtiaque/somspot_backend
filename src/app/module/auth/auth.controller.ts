@@ -34,8 +34,18 @@ const resendActivationCode = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+// This call has no valid JWT yet, so the `auth` middleware never ran to apply
+// the account's saved language preference. Apply it here now that the
+// account is known, unless the request explicitly asked for a language.
+const applyAccountLanguage = (res: Response, language?: string) => {
+  if (res.locals.languageIsDefault && language) {
+    res.locals.language = language;
+  }
+};
+
 const activateAccount = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.activateAccount(req.body);
+  const { language, ...result } = await AuthService.activateAccount(req.body);
+  applyAccountLanguage(res, language);
   const { refreshToken } = result;
 
   const cookieOptions = {
@@ -52,7 +62,8 @@ const activateAccount = catchAsync(async (req: Request, res: Response) => {
 });
 
 const loginAccount = catchAsync(async (req: Request, res: Response) => {
-  const result = await AuthService.loginAccount(req.body);
+  const { language, ...result } = await AuthService.loginAccount(req.body);
+  applyAccountLanguage(res, language);
   const { refreshToken } = result;
 
   const cookieOptions = {

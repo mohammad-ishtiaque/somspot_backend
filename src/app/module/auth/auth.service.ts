@@ -187,6 +187,7 @@ const activateAccount = async (payload: {
   return {
     accessToken,
     refreshToken,
+    language: auth.language,
   };
 };
 
@@ -245,6 +246,7 @@ const loginAccount = async (payload: { email: string; password: string }) => {
   return {
     accessToken,
     refreshToken,
+    language: auth.language,
   };
 };
 

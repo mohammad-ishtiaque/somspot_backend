@@ -35,4 +35,37 @@ describe("OfferService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Live");
   });
+
+  it("excludes scheduled (future startAt) offers from the consumer feed", async () => {
+    const b = await makeBusiness();
+    await OfferService.createOffer(merchant as any, {
+      business: String(b._id),
+      title: "Not yet",
+      startAt: future,
+      endAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+    });
+    const { result } = await OfferService.getAllOffers({});
+    expect(result).toHaveLength(0);
+  });
+
+  it("derives active/scheduled/expired status and counts for the merchant list", async () => {
+    const b = await makeBusiness();
+    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Live", endAt: future });
+    await OfferService.createOffer(merchant as any, {
+      business: String(b._id),
+      title: "Upcoming",
+      startAt: future,
+      endAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+    });
+    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Old", endAt: new Date(Date.now() - 1000).toISOString() });
+
+    const { counts, result } = await OfferService.getMyOffers(merchant as any, {});
+    expect(counts).toEqual({ active: 1, scheduled: 1, expired: 1, inactive: 0 });
+
+    const scheduledOnly = await OfferService.getMyOffers(merchant as any, { status: "scheduled" } as any);
+    expect(scheduledOnly.result).toHaveLength(1);
+    expect(scheduledOnly.result[0].title).toBe("Upcoming");
+
+    expect(result).toHaveLength(3);
+  });
 });

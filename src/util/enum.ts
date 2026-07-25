@@ -55,9 +55,11 @@ const EnumBusinessCategory = {
   ELECTRONICS: "electronics",
 };
 
-// Offer/deal lifecycle
+// Offer/deal lifecycle. SCHEDULED/EXPIRED are never written to the DB — they're
+// derived at read time from startAt/endAt (see offer.service withDerivedStatus).
 const EnumOfferStatus = {
   ACTIVE: "active",
+  SCHEDULED: "scheduled",
   EXPIRED: "expired",
   INACTIVE: "inactive",
 };

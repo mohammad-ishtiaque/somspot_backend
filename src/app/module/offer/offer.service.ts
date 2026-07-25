@@ -8,12 +8,51 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Offer from "./Offer";
 import Business from "../business/Business";
 
-// Derived status: an offer past its endAt is expired regardless of stored value.
-const withLiveStatus = <T extends { endAt: Date; status: string }>(offer: T): T => {
-  if (offer.status === EnumOfferStatus.ACTIVE && new Date(offer.endAt).getTime() < Date.now())
+// Derived status, evaluated fresh on every read (never persisted): a manually
+// paused offer stays INACTIVE; otherwise a future startAt makes it SCHEDULED,
+// a past endAt makes it EXPIRED, and anything else is ACTIVE.
+const withDerivedStatus = <T extends { startAt?: Date; endAt: Date; status: string }>(
+  offer: T,
+): T => {
+  if (offer.status === EnumOfferStatus.INACTIVE) return offer;
+  const now = Date.now();
+  if (offer.startAt && new Date(offer.startAt).getTime() > now)
+    return { ...offer, status: EnumOfferStatus.SCHEDULED };
+  if (new Date(offer.endAt).getTime() < now)
     return { ...offer, status: EnumOfferStatus.EXPIRED };
-  return offer;
+  return { ...offer, status: EnumOfferStatus.ACTIVE };
 };
+
+type OfferStatusCounts = { active: number; scheduled: number; expired: number; inactive: number };
+
+// Filters/searches/paginates an already status-derived offer list in memory.
+// Needed because status here is computed, not a stored field the DB can filter on.
+const paginateDerived = <T extends { title: string; status: string }>(
+  offers: T[],
+  query: QueryParams,
+) => {
+  let filtered = query.status ? offers.filter((o) => o.status === query.status) : offers;
+  if (query.searchTerm) {
+    const term = query.searchTerm.toLowerCase();
+    filtered = filtered.filter((o) => o.title?.toLowerCase().includes(term));
+  }
+
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const total = filtered.length;
+  const result = filtered.slice((page - 1) * limit, (page - 1) * limit + limit);
+
+  return { meta: { page, limit, total, totalPage: Math.ceil(total / limit) }, result };
+};
+
+const countByStatus = (offers: { status: string }[]): OfferStatusCounts =>
+  offers.reduce(
+    (acc, o) => {
+      if (o.status in acc) acc[o.status as keyof OfferStatusCounts] += 1;
+      return acc;
+    },
+    { active: 0, scheduled: 0, expired: 0, inactive: 0 } as OfferStatusCounts,
+  );
 
 const assertOwnsBusiness = async (userData: AuthUserPayload, businessId: string) => {
   const business = await Business.findById(businessId).select("owner");
@@ -42,11 +81,14 @@ const createOffer = async (userData: AuthUserPayload, payload: Record<string, an
   });
 };
 
-// Consumer-facing: active, non-expired offers. Filter by business or category.
+// Consumer-facing: live offers only — excludes both not-yet-started
+// (scheduled) and expired offers. Filter by business or category.
 const getAllOffers = async (query: QueryParams) => {
+  const now = new Date();
   const base: Record<string, unknown> = {
     status: EnumOfferStatus.ACTIVE,
-    endAt: { $gt: new Date() },
+    startAt: { $lte: now },
+    endAt: { $gt: now },
   };
   if (query.business) base.business = query.business;
 
@@ -61,7 +103,7 @@ const getAllOffers = async (query: QueryParams) => {
     Offer.find(base).populate([{ path: "business", select: "name logo category address ratingAvg" }]).lean(),
     query,
   ).execute(["title"]);
-  return { meta, result: result.map(withLiveStatus) };
+  return { meta, result: result.map(withDerivedStatus) };
 };
 
 const getOffer = async (query: { offerId?: string }) => {
@@ -70,18 +112,24 @@ const getOffer = async (query: { offerId?: string }) => {
     .populate([{ path: "business", select: "name logo address phone category ratingAvg" }])
     .lean();
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
-  return withLiveStatus(offer);
+  return withDerivedStatus(offer);
 };
 
+// Merchant "Offers" screen — active/scheduled/expired tabs with counts, all
+// computed from live startAt/endAt rather than the (often stale) stored status.
 const getMyOffers = async (userData: AuthUserPayload, query: QueryParams) => {
   const myBusinesses = await Business.find({ owner: userData.userId }).select("_id").lean();
   const ids = myBusinesses.map((b) => b._id);
 
-  const { meta, result } = await new QueryBuilder(
-    Offer.find({ business: { $in: ids } }).populate([{ path: "business", select: "name logo" }]).lean(),
-    query,
-  ).execute(["title"]);
-  return { meta, result: result.map(withLiveStatus) };
+  const offers = await Offer.find({ business: { $in: ids } })
+    .populate([{ path: "business", select: "name logo" }])
+    .sort((query.sort || "").split(",").join(" ") || "-createdAt")
+    .lean();
+
+  const derived = offers.map(withDerivedStatus);
+  const counts = countByStatus(derived);
+  const { meta, result } = paginateDerived(derived, query);
+  return { meta, result, counts };
 };
 
 const updateOffer = async (userData: AuthUserPayload, payload: Record<string, any>) => {
@@ -106,17 +154,21 @@ const deleteOffer = async (userData: AuthUserPayload, payload: { offerId?: strin
 };
 
 
-// Admin "Offers & Promotions" — all offers regardless of status.
+// Admin "Offers & Promotions" — all offers regardless of status. status filter
+// (active/scheduled/expired/inactive) is applied to the derived status, same
+// as the merchant list, since scheduled/expired are never stored values.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
-  if (query.status) base.status = query.status;
   if (query.business) base.business = query.business;
 
-  const { meta, result } = await new QueryBuilder(
-    Offer.find(base).populate([{ path: "business", select: "name logo category" }]).lean(),
-    query,
-  ).execute(["title"]);
-  return { meta, result: result.map(withLiveStatus) };
+  const offers = await Offer.find(base)
+    .populate([{ path: "business", select: "name logo category" }])
+    .sort((query.sort || "").split(",").join(" ") || "-createdAt")
+    .lean();
+
+  const derived = offers.map(withDerivedStatus);
+  const { meta, result } = paginateDerived(derived, query);
+  return { meta, result };
 };
 
 const OfferService = {

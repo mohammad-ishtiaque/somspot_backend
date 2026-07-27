@@ -139,6 +139,21 @@ const EnumSocialPlatform = {
   INSTAGRAM: "instagram",
 };
 
+// Influencer niche — shared by Campaign.influencerCategory (what the merchant
+// wants) and Creator.category (what the creator is), so admin can match them
+// when assigning (Figma: New Campaign > Influencer Category, "Food Creator").
+const EnumCreatorCategory = {
+  FOOD: "food",
+  FASHION: "fashion",
+  LIFESTYLE: "lifestyle",
+  BEAUTY: "beauty",
+  TECH: "tech",
+  FITNESS: "fitness",
+  TRAVEL: "travel",
+  ENTERTAINMENT: "entertainment",
+  OTHER: "other",
+};
+
 export {
   EnumUserRole,
   EnumPaymentStatus,
@@ -158,4 +173,5 @@ export {
   EnumSocialPlatform,
   EnumSupportStatus,
   EnumLanguage,
+  EnumCreatorCategory,
 };

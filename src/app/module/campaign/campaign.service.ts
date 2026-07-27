@@ -8,6 +8,7 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Campaign from "./Campaign";
 import Business from "../business/Business";
 import Auth from "../auth/Auth";
+import User from "../user/User";
 import CampaignApplication from "../creator/CampaignApplication";
 import Earning from "../creator/Earning";
 import { SubscriptionService } from "../subscription/subscription.service";
@@ -49,12 +50,56 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
     about: payload.about,
     objective: payload.objective,
     contentType: payload.contentType,
+    influencerCategory: payload.influencerCategory,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    contentRequirements: payload.contentRequirements,
     invitedCreator: payload.invitedCreator,
     videoLengthSec,
     targetCreators: payload.targetCreators ?? 1,
     pricePerClaim: priceForVideoLength(Number(videoLengthSec)),
     status: EnumCampaignStatus.PENDING_REVIEW,
   });
+};
+
+// Derived, not stored: budget totals, staffing progress, content progress,
+// days left, and the merchant Overview "timeline" stepper (Figma: Campaign
+// submitted / Admin approval / Influencers assigned / Content review /
+// Published). `applications` is every CampaignApplication for the campaign.
+const buildCampaignStats = (
+  campaign: { targetCreators: number; pricePerClaim: number; endDate?: Date | null; status: string },
+  applications: { status: string }[],
+) => {
+  const assignedCount = applications.length;
+  const neededCreators = Math.max(campaign.targetCreators - assignedCount, 0);
+  const totalBudget = campaign.targetCreators * campaign.pricePerClaim;
+  const spentBudget = assignedCount * campaign.pricePerClaim;
+  const submittedContentCount = applications.filter((a) =>
+    [EnumTaskStatus.DRAFT_SUBMITTED, EnumTaskStatus.VERIFYING, EnumTaskStatus.PUBLISHED].includes(a.status),
+  ).length;
+  const publishedCount = applications.filter((a) => a.status === EnumTaskStatus.PUBLISHED).length;
+  const daysLeft = campaign.endDate
+    ? Math.max(Math.ceil((new Date(campaign.endDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)), 0)
+    : null;
+
+  const stages = [
+    { stage: "submitted", done: true },
+    { stage: "admin_approval", done: campaign.status !== EnumCampaignStatus.PENDING_REVIEW },
+    { stage: "influencers_assigned", done: assignedCount > 0 && assignedCount >= campaign.targetCreators },
+    { stage: "content_review", done: assignedCount > 0 && submittedContentCount >= assignedCount },
+    { stage: "published", done: assignedCount > 0 && publishedCount >= assignedCount },
+  ];
+  let currentMarked = false;
+  const timeline = stages.map((s) => {
+    if (s.done) return { ...s, current: false };
+    if (!currentMarked) {
+      currentMarked = true;
+      return { ...s, current: true };
+    }
+    return { ...s, current: false };
+  });
+
+  return { assignedCount, neededCreators, totalBudget, spentBudget, submittedContentCount, daysLeft, timeline };
 };
 
 const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => {
@@ -64,27 +109,44 @@ const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => 
       .lean(),
     query,
   ).execute(["name"]);
-  return { meta, result };
+
+  const enriched = await Promise.all(
+    result.map(async (c: any) => {
+      const applications = await CampaignApplication.find({ campaign: c._id }).select("status").lean();
+      return { ...c, ...buildCampaignStats(c, applications) };
+    }),
+  );
+
+  const [active, inReview] = await Promise.all([
+    Campaign.countDocuments({ merchant: userData.userId, status: EnumCampaignStatus.LIVE }),
+    Campaign.countDocuments({ merchant: userData.userId, status: EnumCampaignStatus.PENDING_REVIEW }),
+  ]);
+
+  return { meta, summary: { active, inReview }, result: enriched };
 };
 
-const getCampaign = async (query: { campaignId?: string }) => {
+const getCampaign = async (userData: AuthUserPayload, query: { campaignId?: string }) => {
   validateFields(query, ["campaignId"]);
   const campaign = await Campaign.findById(query.campaignId)
     .populate([
-      { path: "business", select: "name logo address" },
+      { path: "business", select: "name logo address category" },
       { path: "offer", select: "title discountLabel" },
       { path: "invitedCreator", select: "name email" },
     ])
     .lean();
   if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
-  return campaign;
+  if (!isPrivileged(userData.role) && String(campaign.merchant) !== userData.userId)
+    throw new ApiError(status.FORBIDDEN, "Not your campaign");
+
+  const applications = await CampaignApplication.find({ campaign: campaign._id }).select("status").lean();
+  return { ...campaign, ...buildCampaignStats(campaign, applications) };
 };
 
 const updateCampaign = async (userData: AuthUserPayload, payload: Record<string, any>) => {
   validateFields(payload, ["campaignId"]);
   const campaign = await assertOwnsCampaign(userData, String(payload.campaignId));
 
-  const fields = ["name", "about", "objective", "contentType", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
+  const fields = ["name", "about", "objective", "contentType", "influencerCategory", "startDate", "endDate", "contentRequirements", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
   for (const f of fields) if (payload[f] !== undefined) (campaign as any)[f] = payload[f];
   // pricePerClaim is always derived from videoLengthSec — never merchant-editable.
   if (payload.videoLengthSec !== undefined) campaign.pricePerClaim = priceForVideoLength(Number(payload.videoLengthSec));
@@ -105,7 +167,10 @@ const updateCampaign = async (userData: AuthUserPayload, payload: Record<string,
   return campaign;
 };
 
-// Admin approves (-> live) or rejects (-> rejected) a campaign submitted for review.
+// Admin approves (-> live) or rejects (-> rejected) a campaign submitted for
+// review. Approval requires every creator slot to already be filled — the
+// admin assigns creators to the still-pending campaign first (assignCreator),
+// then approves once fully staffed.
 const reviewCampaign = async (payload: { campaignId?: string; action?: string; rejectionReason?: string }) => {
   validateFields(payload, ["campaignId", "action"]);
   const campaign = await Campaign.findById(payload.campaignId);
@@ -114,6 +179,11 @@ const reviewCampaign = async (payload: { campaignId?: string; action?: string; r
     throw new ApiError(status.BAD_REQUEST, "Campaign is not pending review");
 
   if (payload.action === "approve") {
+    if (campaign.approvedCount < campaign.targetCreators)
+      throw new ApiError(
+        status.BAD_REQUEST,
+        `Assign all ${campaign.targetCreators} required creators before approving`,
+      );
     campaign.status = EnumCampaignStatus.LIVE;
     campaign.rejectionReason = undefined;
   } else if (payload.action === "reject") {
@@ -126,16 +196,24 @@ const reviewCampaign = async (payload: { campaignId?: string; action?: string; r
   return campaign;
 };
 
-// Admin directly assigns a creator to a live campaign from their dashboard —
-// the task is created already-approved (no self-service application step).
+// Admin directly assigns a creator to a still-pending campaign from their
+// dashboard — the task is created already-approved (no self-service
+// application step). Assignment happens before final approval (Figma:
+// "Assign Influencers" tab + "Approve Campaign (0/5)" on a Pending campaign).
 const assignCreator = async (payload: { campaignId?: string; creatorUserId?: string; pitch?: string }) => {
   validateFields(payload, ["campaignId", "creatorUserId"]);
   const campaign = await Campaign.findById(payload.campaignId);
   if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
-  if (campaign.status !== EnumCampaignStatus.LIVE)
-    throw new ApiError(status.BAD_REQUEST, "Campaign must be live (approved) before assigning creators");
+  if (campaign.status !== EnumCampaignStatus.PENDING_REVIEW)
+    throw new ApiError(status.BAD_REQUEST, "Creators can only be assigned while the campaign is pending review");
+  if (campaign.approvedCount >= campaign.targetCreators)
+    throw new ApiError(status.BAD_REQUEST, "All creator slots for this campaign are already filled");
 
-  const creatorAuth = await Auth.findById(payload.creatorUserId).select("role");
+  // `creatorUserId` is the creator's User._id (matches CampaignApplication.creator's
+  // "User" ref, and what /creator/admin/list returns) — not their Auth._id.
+  const creatorUser = await User.findById(payload.creatorUserId).select("authId");
+  if (!creatorUser) throw new ApiError(status.NOT_FOUND, "Creator not found");
+  const creatorAuth = await Auth.findById(creatorUser.authId).select("role");
   if (!creatorAuth || creatorAuth.role !== EnumUserRole.CREATOR)
     throw new ApiError(status.NOT_FOUND, "Creator not found");
 
@@ -179,7 +257,8 @@ const deleteCampaign = async (userData: AuthUserPayload, payload: { campaignId?:
   return { deleted: true };
 };
 
-// Merchant reviews the list of creators who applied to their campaign.
+// Merchant views the creators admin assigned to their campaign (read-only —
+// assignment itself can't be changed from the merchant app).
 const getApplications = async (userData: AuthUserPayload, query: QueryParams) => {
   validateFields(query, ["campaignId"]);
   await assertOwnsCampaign(userData, String(query.campaignId));

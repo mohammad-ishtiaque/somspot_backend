@@ -24,10 +24,20 @@ const getMyProfile = async (userData: AuthUserPayload) => {
   return profile;
 };
 
-const updateProfile = async (userData: AuthUserPayload, payload: { bio?: string }) => {
+const updateProfile = async (
+  userData: AuthUserPayload,
+  payload: { bio?: string; category?: string; followerCount?: number; engagementRate?: number },
+) => {
   const profile = await Creator.findOneAndUpdate(
     { user: userData.userId },
-    { $set: { ...(payload.bio !== undefined && { bio: payload.bio }) } },
+    {
+      $set: {
+        ...(payload.bio !== undefined && { bio: payload.bio }),
+        ...(payload.category !== undefined && { category: payload.category }),
+        ...(payload.followerCount !== undefined && { followerCount: payload.followerCount }),
+        ...(payload.engagementRate !== undefined && { engagementRate: payload.engagementRate }),
+      },
+    },
     { new: true, upsert: true },
   );
   return profile;
@@ -222,6 +232,45 @@ const processPayout = async (payload: { payoutId?: string; action?: string }) =>
 };
 
 
+// ---------------- Admin: creator discovery ----------------
+// Admin browses/searches creators to assign to a campaign (Figma: Assign
+// Influencers creator picker — followers/engagement/pitch, done-count).
+// Optional ?category=<EnumCreatorCategory> filter (handled automatically by
+// QueryBuilder's generic field filter).
+const adminListCreators = async (query: QueryParams) => {
+  const { meta, result } = await new QueryBuilder(
+    Creator.find().populate([{ path: "user", select: "name profile_image email" }]).lean(),
+    query,
+  ).execute([]);
+
+  const enriched = await Promise.all(
+    result.map(async (c: any) => ({
+      ...c,
+      doneCount: await CampaignApplication.countDocuments({
+        creator: c.user?._id,
+        status: EnumTaskStatus.PUBLISHED,
+      }),
+    })),
+  );
+
+  return { meta, result: enriched };
+};
+
+// Admin views one creator's full profile before assigning them.
+const adminGetCreatorProfile = async (query: { userId?: string }) => {
+  validateFields(query, ["userId"]);
+  const profile = await Creator.findOne({ user: query.userId })
+    .populate([{ path: "user", select: "name profile_image email" }])
+    .lean();
+  if (!profile) throw new ApiError(status.NOT_FOUND, "Creator not found");
+
+  const doneCount = await CampaignApplication.countDocuments({
+    creator: query.userId,
+    status: EnumTaskStatus.PUBLISHED,
+  });
+  return { ...profile, doneCount };
+};
+
 // Public: published creator content for a business (consumer "Creator" tab on
 // the business-detail screen — "see what local creators are saying").
 const getBusinessContent = async (query: { businessId?: string }) => {
@@ -257,6 +306,8 @@ const CreatorService = {
   requestPayout,
   getPayouts,
   processPayout,
+  adminListCreators,
+  adminGetCreatorProfile,
 };
 
 export { CreatorService };

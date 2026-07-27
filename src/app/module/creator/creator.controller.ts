@@ -68,6 +68,16 @@ const getBusinessContent = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Creator content retrieved", data: result });
 });
 
+const adminListCreators = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminListCreators(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creators retrieved", data: result });
+});
+
+const adminGetCreatorProfile = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminGetCreatorProfile(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
+});
+
 const CreatorController = {
   getMyProfile,
   updateProfile,
@@ -81,6 +91,8 @@ const CreatorController = {
   requestPayout,
   getPayouts,
   processPayout,
+  adminListCreators,
+  adminGetCreatorProfile,
 };
 
 export { CreatorController };

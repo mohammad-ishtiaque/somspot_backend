@@ -18,7 +18,7 @@ const getMyCampaigns = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getCampaign = catchAsync(async (req: Request, res: Response) => {
-  const result = await CampaignService.getCampaign(req.query);
+  const result = await CampaignService.getCampaign(getAuthUser(req), req.query);
   sendResponse(res, { statusCode: 200, success: true, message: "Campaign retrieved", data: result });
 });
 

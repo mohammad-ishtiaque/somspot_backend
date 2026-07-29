@@ -1,5 +1,5 @@
 import { Schema, model, Types } from "mongoose";
-import { EnumCampaignStatus, EnumCampaignObjective, EnumCampaignContentType, EnumCreatorCategory } from "../../../util/enum";
+import { EnumCampaignStatus, EnumCampaignObjective, EnumCampaignContentType } from "../../../util/enum";
 
 export interface ICampaign {
   _id: Types.ObjectId;
@@ -10,7 +10,7 @@ export interface ICampaign {
   about?: string;
   objective?: string; // EnumCampaignObjective
   contentType?: string; // EnumCampaignContentType
-  influencerCategory?: string; // EnumCreatorCategory — what kind of creator the merchant wants
+  influencerCategory?: Types.ObjectId; // ref Category (type: creator) — what kind of creator the merchant wants
   startDate?: Date;
   endDate?: Date;
   contentRequirements?: string; // Figma: "Content Requirements" / "Campaign Requirements"
@@ -34,7 +34,7 @@ const campaignSchema = new Schema<ICampaign>(
     about: { type: String },
     objective: { type: String, enum: Object.values(EnumCampaignObjective) },
     contentType: { type: String, enum: Object.values(EnumCampaignContentType) },
-    influencerCategory: { type: String, enum: Object.values(EnumCreatorCategory) },
+    influencerCategory: { type: Schema.Types.ObjectId, ref: "Category" },
     startDate: { type: Date },
     endDate: { type: Date },
     contentRequirements: { type: String },

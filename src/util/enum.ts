@@ -139,19 +139,13 @@ const EnumSocialPlatform = {
   INSTAGRAM: "instagram",
 };
 
-// Influencer niche — shared by Campaign.influencerCategory (what the merchant
-// wants) and Creator.category (what the creator is), so admin can match them
-// when assigning (Figma: New Campaign > Influencer Category, "Food Creator").
-const EnumCreatorCategory = {
-  FOOD: "food",
-  FASHION: "fashion",
-  LIFESTYLE: "lifestyle",
-  BEAUTY: "beauty",
-  TECH: "tech",
-  FITNESS: "fitness",
-  TRAVEL: "travel",
-  ENTERTAINMENT: "entertainment",
-  OTHER: "other",
+// What a Category document is for — the same admin-managed Category
+// collection now backs both business categories (Pharmacy, Electronics, ...)
+// and influencer niches (Food, Fashion, ...), distinguished by this field
+// instead of two separate hardcoded lists.
+const EnumCategoryType = {
+  MERCHANT: "merchant",
+  CREATOR: "creator",
 };
 
 export {
@@ -173,5 +167,5 @@ export {
   EnumSocialPlatform,
   EnumSupportStatus,
   EnumLanguage,
-  EnumCreatorCategory,
+  EnumCategoryType,
 };

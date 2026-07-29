@@ -120,4 +120,92 @@ describe("CampaignService", () => {
     const result = await CampaignService.getCampaign(admin as any, { campaignId: String(c._id) });
     expect(String(result._id)).toBe(String(c._id));
   });
+
+  it("filters the merchant's campaign list by status (Figma: All / Pending / Approved tabs)", async () => {
+    const b = await setupEntitledMerchant();
+
+    // "Pending" — stays pending_review.
+    await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Pending One" });
+    await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Pending Two" });
+
+    // "Approved" — fully staffed and approved to live.
+    const approved = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Sunset Coffee Promotion", targetCreators: 1 });
+    const creatorId = await createCreatorAuth();
+    await CampaignService.assignCreator({ campaignId: String(approved._id), creatorUserId: creatorId });
+    await CampaignService.reviewCampaign({ campaignId: String(approved._id), action: "approve" });
+
+    const all = await CampaignService.getMyCampaigns(merchant as any, {});
+    expect(all.result).toHaveLength(3);
+    expect(all.summary).toEqual({ active: 1, inReview: 2 });
+
+    // The real stored status is "pending_review"/"live" — there is no
+    // literal "approved" status, so the FE's "Approved" tab must query
+    // ?status=live, not ?status=approved.
+    const pending = await CampaignService.getMyCampaigns(merchant as any, { status: EnumCampaignStatus.PENDING_REVIEW });
+    expect(pending.result).toHaveLength(2);
+    expect(pending.result.every((c: any) => c.status === EnumCampaignStatus.PENDING_REVIEW)).toBe(true);
+
+    const live = await CampaignService.getMyCampaigns(merchant as any, { status: EnumCampaignStatus.LIVE });
+    expect(live.result).toHaveLength(1);
+    expect(live.result[0].name).toBe("Sunset Coffee Promotion");
+    expect((live.result[0] as any).spentBudget).toBe((live.result[0] as any).totalBudget);
+
+    // A status value that doesn't exist (e.g. the FE naively sending
+    // "approved" literally) correctly matches nothing rather than silently
+    // returning everything.
+    const bogus = await CampaignService.getMyCampaigns(merchant as any, { status: "approved" });
+    expect(bogus.result).toHaveLength(0);
+  });
+
+  it("derives the admin list's richer status set (Figma: Pending Approval / Influencers Assigned / Approved / Active / Rejected)", async () => {
+    const b = await setupEntitledMerchant();
+    const DAY = 24 * 60 * 60 * 1000;
+
+    // Pending Approval — nothing assigned yet.
+    await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Ramadan Fashion Campaign", targetCreators: 5 });
+
+    // Influencers Assigned — fully staffed but admin hasn't clicked Approve.
+    const staffed = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Somali Sports Week Promo", targetCreators: 1 });
+    await CampaignService.assignCreator({ campaignId: String(staffed._id), creatorUserId: await createCreatorAuth() });
+
+    // Approved — live, but starts in the future.
+    const approved = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Naaso Coffee Brand Awareness", targetCreators: 1, startDate: new Date(Date.now() + 5 * DAY) });
+    await CampaignService.assignCreator({ campaignId: String(approved._id), creatorUserId: await createCreatorAuth() });
+    await CampaignService.reviewCampaign({ campaignId: String(approved._id), action: "approve" });
+
+    // Active — live and within its date window.
+    const active = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Ramadan Grocery Deals", targetCreators: 1, startDate: new Date(Date.now() - DAY), endDate: new Date(Date.now() + DAY) });
+    await CampaignService.assignCreator({ campaignId: String(active._id), creatorUserId: await createCreatorAuth() });
+    await CampaignService.reviewCampaign({ campaignId: String(active._id), action: "approve" });
+
+    // Rejected.
+    const rejected = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Summer Beauty Collection", targetCreators: 1 });
+    await CampaignService.reviewCampaign({ campaignId: String(rejected._id), action: "reject", rejectionReason: "Not a fit" });
+
+    const all = await CampaignService.adminGetAll({});
+    expect(all.summary).toEqual({
+      total: 5,
+      pendingApproval: 1,
+      influencersAssigned: 1,
+      approved: 1,
+      active: 1,
+      rejected: 1,
+      completed: 0,
+    });
+
+    const byName = (name: string) => all.result.find((c: any) => c.name === name) as any;
+    expect(byName("Ramadan Fashion Campaign").displayStatus).toBe("pending_approval");
+    expect(byName("Somali Sports Week Promo").displayStatus).toBe("influencers_assigned");
+    expect(byName("Naaso Coffee Brand Awareness").displayStatus).toBe("approved");
+    expect(byName("Ramadan Grocery Deals").displayStatus).toBe("active");
+    expect(byName("Summer Beauty Collection").displayStatus).toBe(EnumCampaignStatus.REJECTED);
+
+    const onlyActive = await CampaignService.adminGetAll({ status: "active" });
+    expect(onlyActive.result).toHaveLength(1);
+    expect(onlyActive.result[0].name).toBe("Ramadan Grocery Deals");
+
+    const onlyAssigned = await CampaignService.adminGetAll({ status: "influencers_assigned" });
+    expect(onlyAssigned.result).toHaveLength(1);
+    expect(onlyAssigned.result[0].name).toBe("Somali Sports Week Promo");
+  });
 });

@@ -3,6 +3,8 @@ import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import {
+  EnumCampaignStatus,
+  EnumCategoryType,
   EnumPayoutStatus,
   EnumTaskStatus,
 } from "../../../util/enum";
@@ -10,6 +12,8 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Creator from "./Creator";
 import Campaign from "../campaign/Campaign";
 import CampaignApplication from "./CampaignApplication";
+import Category from "../category/Category";
+import User from "../user/User";
 import Earning from "./Earning";
 import Payout from "./Payout";
 
@@ -24,10 +28,20 @@ const getMyProfile = async (userData: AuthUserPayload) => {
   return profile;
 };
 
+// category must be a real, active Category doc of type "creator" — the same
+// Category collection admin manages for business categories (see Campaign's
+// assertCreatorCategory / Category.ts / EnumCategoryType).
+const assertCreatorCategory = async (categoryId: unknown) => {
+  if (!categoryId) return;
+  const category = await Category.findOne({ _id: categoryId, type: EnumCategoryType.CREATOR }).select("_id");
+  if (!category) throw new ApiError(status.BAD_REQUEST, "Invalid creator category");
+};
+
 const updateProfile = async (
   userData: AuthUserPayload,
   payload: { bio?: string; category?: string; followerCount?: number; engagementRate?: number },
 ) => {
+  if (payload.category !== undefined) await assertCreatorCategory(payload.category);
   const profile = await Creator.findOneAndUpdate(
     { user: userData.userId },
     {
@@ -233,42 +247,70 @@ const processPayout = async (payload: { payoutId?: string; action?: string }) =>
 
 
 // ---------------- Admin: creator discovery ----------------
+
 // Admin browses/searches creators to assign to a campaign (Figma: Assign
-// Influencers creator picker — followers/engagement/pitch, done-count).
-// Optional ?category=<EnumCreatorCategory> filter (handled automatically by
-// QueryBuilder's generic field filter).
+// Influencers > Eligible Influencers — name, category, Active/Pending/Done).
+// `searchTerm` matches the creator's name, which lives on User, not Creator,
+// so it's resolved to a set of user ids before the main query rather than
+// going through QueryBuilder's own field-based search.
 const adminListCreators = async (query: QueryParams) => {
+  const base: Record<string, unknown> = {};
+  if (query.category) base.category = query.category;
+  if (query.searchTerm) {
+    const matchingUsers = await User.find({ name: { $regex: query.searchTerm, $options: "i" } })
+      .select("_id")
+      .lean();
+    base.user = { $in: matchingUsers.map((u) => u._id) };
+  }
+
   const { meta, result } = await new QueryBuilder(
-    Creator.find().populate([{ path: "user", select: "name profile_image email" }]).lean(),
+    Creator.find(base)
+      .populate([
+        { path: "user", select: "name profile_image email" },
+        { path: "category", select: "name slug icon" },
+      ])
+      .lean(),
     query,
   ).execute([]);
 
-  const enriched = await Promise.all(
-    result.map(async (c: any) => ({
-      ...c,
-      doneCount: await CampaignApplication.countDocuments({
-        creator: c.user?._id,
-        status: EnumTaskStatus.PUBLISHED,
-      }),
-    })),
-  );
-
+  const enriched = await Promise.all(result.map((c: any) => attachTaskCounts(c)));
   return { meta, result: enriched };
+};
+
+// Active = has a task on a campaign that's currently live. Pending = has a
+// task on a campaign still awaiting admin approval (assigned but not yet
+// live). Done = published tasks. Counted by the *linked campaign's* status,
+// not the creator's own account state.
+const attachTaskCounts = async (creator: any) => {
+  const applications = await CampaignApplication.find({ creator: creator.user?._id })
+    .populate([{ path: "campaign", select: "status" }])
+    .select("status campaign")
+    .lean();
+
+  let activeCount = 0;
+  let pendingCount = 0;
+  let doneCount = 0;
+  for (const a of applications as any[]) {
+    if (a.status === EnumTaskStatus.PUBLISHED) doneCount++;
+    else if (a.campaign?.status === EnumCampaignStatus.LIVE) activeCount++;
+    else if (a.campaign?.status === EnumCampaignStatus.PENDING_REVIEW) pendingCount++;
+  }
+
+  return { ...creator, activeCount, pendingCount, doneCount };
 };
 
 // Admin views one creator's full profile before assigning them.
 const adminGetCreatorProfile = async (query: { userId?: string }) => {
   validateFields(query, ["userId"]);
   const profile = await Creator.findOne({ user: query.userId })
-    .populate([{ path: "user", select: "name profile_image email" }])
+    .populate([
+      { path: "user", select: "name profile_image email" },
+      { path: "category", select: "name slug icon" },
+    ])
     .lean();
   if (!profile) throw new ApiError(status.NOT_FOUND, "Creator not found");
 
-  const doneCount = await CampaignApplication.countDocuments({
-    creator: query.userId,
-    status: EnumTaskStatus.PUBLISHED,
-  });
-  return { ...profile, doneCount };
+  return attachTaskCounts(profile);
 };
 
 // Public: published creator content for a business (consumer "Creator" tab on

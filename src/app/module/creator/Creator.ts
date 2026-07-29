@@ -1,5 +1,5 @@
 import { Schema, model, Types } from "mongoose";
-import { EnumSocialPlatform, EnumCreatorCategory } from "../../../util/enum";
+import { EnumSocialPlatform } from "../../../util/enum";
 
 export interface ISocialAccount {
   platform: string; // tiktok | instagram
@@ -12,7 +12,7 @@ export interface ICreator {
   _id: Types.ObjectId;
   user: Types.ObjectId;
   bio?: string;
-  category?: string; // EnumCreatorCategory — self-reported niche (Figma: "Food Creator")
+  category?: Types.ObjectId; // ref Category (type: creator) — self-reported niche (Figma: "Food Creator")
   followerCount: number; // self-reported — no social API integration to verify this
   engagementRate: number; // self-reported percentage
   socials: ISocialAccount[];
@@ -34,7 +34,7 @@ const creatorSchema = new Schema<ICreator>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     bio: { type: String },
-    category: { type: String, enum: Object.values(EnumCreatorCategory) },
+    category: { type: Schema.Types.ObjectId, ref: "Category" },
     followerCount: { type: Number, default: 0 },
     engagementRate: { type: Number, default: 0 },
     socials: { type: [socialSchema], default: [] },

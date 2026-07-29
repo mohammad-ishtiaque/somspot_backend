@@ -3,6 +3,7 @@ import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import unlinkFile from "../../../util/unlinkFile";
+import { EnumCategoryType } from "../../../util/enum";
 import Category from "./Category";
 
 const slugify = (value: string) =>
@@ -12,13 +13,17 @@ const createCategory = async (payload: Record<string, any>) => {
   validateFields(payload, ["name"]);
   const name = String(payload.name);
   const slug = payload.slug ? slugify(String(payload.slug)) : slugify(name);
+  const type = payload.type || EnumCategoryType.MERCHANT;
 
-  const exists = await Category.findOne({ slug });
+  // Uniqueness is per type — "Fashion" can exist as both a merchant and a
+  // creator category.
+  const exists = await Category.findOne({ slug, type });
   if (exists) throw new ApiError(status.CONFLICT, "Category already exists");
 
   return Category.create({
     name,
     slug,
+    type,
     icon: payload.icon,
     order: payload.order ?? 0,
   });
@@ -45,6 +50,7 @@ const updateCategory = async (payload: Record<string, unknown>) => {
     ...(payload.name && { name: payload.name }),
     ...(payload.slug && { slug: slugify(String(payload.slug)) }),
     ...(payload.icon !== undefined && { icon: payload.icon }),
+    ...(payload.type !== undefined && { type: payload.type }),
     ...(payload.order !== undefined && { order: payload.order }),
     ...(payload.isActive !== undefined && { isActive: payload.isActive }),
   };

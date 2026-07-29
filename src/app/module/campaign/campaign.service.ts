@@ -3,12 +3,13 @@ import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
-import { EnumCampaignStatus, EnumTaskStatus, EnumUserRole } from "../../../util/enum";
+import { EnumCampaignStatus, EnumTaskStatus, EnumUserRole, EnumCategoryType } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Campaign from "./Campaign";
 import Business from "../business/Business";
 import Auth from "../auth/Auth";
 import User from "../user/User";
+import Category from "../category/Category";
 import CampaignApplication from "../creator/CampaignApplication";
 import Earning from "../creator/Earning";
 import { SubscriptionService } from "../subscription/subscription.service";
@@ -26,6 +27,15 @@ const assertOwnsCampaign = async (userData: AuthUserPayload, campaignId: string)
   return campaign;
 };
 
+// influencerCategory must be a real, active Category doc of type "creator" —
+// the same Category collection admin manages for business categories, just
+// filtered by type (see Category.ts / EnumCategoryType).
+const assertCreatorCategory = async (categoryId: unknown) => {
+  if (!categoryId) return;
+  const category = await Category.findOne({ _id: categoryId, type: EnumCategoryType.CREATOR }).select("_id");
+  if (!category) throw new ApiError(status.BAD_REQUEST, "Invalid influencer category");
+};
+
 const createCampaign = async (userData: AuthUserPayload, payload: Record<string, any>) => {
   validateFields(payload, ["business", "name"]);
 
@@ -38,6 +48,7 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
   if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
   if (!isPrivileged(userData.role) && String(business.owner) !== userData.userId)
     throw new ApiError(status.FORBIDDEN, "Not your business");
+  await assertCreatorCategory(payload.influencerCategory);
 
   const videoLengthSec = payload.videoLengthSec ?? 30;
 
@@ -62,12 +73,35 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
   });
 };
 
+// The Figma admin list has more states than the raw stored `status`: a
+// pending_review campaign splits into "pending_approval" / "influencers_assigned"
+// depending on staffing, and a live campaign splits into "approved" / "active"
+// depending on whether today falls within its date window. None of this is
+// stored — derived at read time, same approach as Offer's ACTIVE/SCHEDULED/
+// EXPIRED (see offer.service.ts withDerivedStatus).
+const deriveDisplayStatus = (
+  campaign: { status: string; startDate?: Date | null; endDate?: Date | null; targetCreators: number },
+  assignedCount: number,
+): string => {
+  if (campaign.status === EnumCampaignStatus.PENDING_REVIEW) {
+    return assignedCount >= campaign.targetCreators ? "influencers_assigned" : "pending_approval";
+  }
+  if (campaign.status === EnumCampaignStatus.LIVE) {
+    const now = Date.now();
+    const afterStart = !campaign.startDate || new Date(campaign.startDate).getTime() <= now;
+    const beforeEnd = !campaign.endDate || new Date(campaign.endDate).getTime() >= now;
+    return afterStart && beforeEnd ? "active" : "approved";
+  }
+  return campaign.status; // rejected | paused | completed pass through unchanged
+};
+
 // Derived, not stored: budget totals, staffing progress, content progress,
-// days left, and the merchant Overview "timeline" stepper (Figma: Campaign
-// submitted / Admin approval / Influencers assigned / Content review /
-// Published). `applications` is every CampaignApplication for the campaign.
+// days left, display status, and the merchant Overview "timeline" stepper
+// (Figma: Campaign submitted / Admin approval / Influencers assigned /
+// Content review / Published). `applications` is every CampaignApplication
+// for the campaign.
 const buildCampaignStats = (
-  campaign: { targetCreators: number; pricePerClaim: number; endDate?: Date | null; status: string },
+  campaign: { targetCreators: number; pricePerClaim: number; startDate?: Date | null; endDate?: Date | null; status: string },
   applications: { status: string }[],
 ) => {
   const assignedCount = applications.length;
@@ -81,6 +115,7 @@ const buildCampaignStats = (
   const daysLeft = campaign.endDate
     ? Math.max(Math.ceil((new Date(campaign.endDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)), 0)
     : null;
+  const displayStatus = deriveDisplayStatus(campaign, assignedCount);
 
   const stages = [
     { stage: "submitted", done: true },
@@ -99,13 +134,16 @@ const buildCampaignStats = (
     return { ...s, current: false };
   });
 
-  return { assignedCount, neededCreators, totalBudget, spentBudget, submittedContentCount, daysLeft, timeline };
+  return { assignedCount, neededCreators, totalBudget, spentBudget, submittedContentCount, daysLeft, displayStatus, timeline };
 };
 
 const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => {
   const { meta, result } = await new QueryBuilder(
     Campaign.find({ merchant: userData.userId })
-      .populate([{ path: "business", select: "name logo" }])
+      .populate([
+        { path: "business", select: "name logo" },
+        { path: "influencerCategory", select: "name slug icon" },
+      ])
       .lean(),
     query,
   ).execute(["name"]);
@@ -132,6 +170,7 @@ const getCampaign = async (userData: AuthUserPayload, query: { campaignId?: stri
       { path: "business", select: "name logo address category" },
       { path: "offer", select: "title discountLabel" },
       { path: "invitedCreator", select: "name email" },
+      { path: "influencerCategory", select: "name slug icon" },
     ])
     .lean();
   if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
@@ -145,6 +184,7 @@ const getCampaign = async (userData: AuthUserPayload, query: { campaignId?: stri
 const updateCampaign = async (userData: AuthUserPayload, payload: Record<string, any>) => {
   validateFields(payload, ["campaignId"]);
   const campaign = await assertOwnsCampaign(userData, String(payload.campaignId));
+  if (payload.influencerCategory !== undefined) await assertCreatorCategory(payload.influencerCategory);
 
   const fields = ["name", "about", "objective", "contentType", "influencerCategory", "startDate", "endDate", "contentRequirements", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
   for (const f of fields) if (payload[f] !== undefined) (campaign as any)[f] = payload[f];
@@ -232,22 +272,60 @@ const assignCreator = async (payload: { campaignId?: string; creatorUserId?: str
   return application;
 };
 
-// Admin "Campaigns" dashboard — every campaign regardless of status/merchant.
+// Admin "Merchant Campaigns" list (Figma: Offers & Promotions > Merchant
+// Campaigns). `status` here is the *derived* display status (pending_approval
+// / influencers_assigned / approved / active / rejected / paused / completed),
+// not the raw stored one — see deriveDisplayStatus. That means filtering and
+// the tab/summary counts happen in memory over the (business/name-narrowed)
+// candidate set rather than as a single Mongo query, same tradeoff the
+// merchant dashboard already makes for its own aggregate stats.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
-  if (query.status) base.status = query.status;
   if (query.business) base.business = query.business;
+  if (query.searchTerm) base.name = { $regex: query.searchTerm, $options: "i" };
 
-  const { meta, result } = await new QueryBuilder(
-    Campaign.find(base)
-      .populate([
-        { path: "business", select: "name logo" },
-        { path: "merchant", select: "name email" },
-      ])
-      .lean(),
-    query,
-  ).execute(["name"]);
-  return { meta, result };
+  const campaigns = await Campaign.find(base)
+    .populate([
+      { path: "business", select: "name logo" },
+      { path: "merchant", select: "name email" },
+      { path: "influencerCategory", select: "name slug icon" },
+    ])
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const campaignIds = campaigns.map((c) => c._id);
+  const assignedCounts = await CampaignApplication.aggregate([
+    { $match: { campaign: { $in: campaignIds } } },
+    { $group: { _id: "$campaign", count: { $sum: 1 } } },
+  ]);
+  const assignedCountMap = new Map(assignedCounts.map((a) => [String(a._id), a.count]));
+
+  const withStatus = campaigns.map((c: any) => {
+    const assignedCount = assignedCountMap.get(String(c._id)) || 0;
+    return { ...c, assignedCount, displayStatus: deriveDisplayStatus(c, assignedCount) };
+  });
+
+  const summary = {
+    total: withStatus.length,
+    pendingApproval: withStatus.filter((c) => c.displayStatus === "pending_approval").length,
+    influencersAssigned: withStatus.filter((c) => c.displayStatus === "influencers_assigned").length,
+    approved: withStatus.filter((c) => c.displayStatus === "approved").length,
+    active: withStatus.filter((c) => c.displayStatus === "active").length,
+    rejected: withStatus.filter((c) => c.displayStatus === EnumCampaignStatus.REJECTED).length,
+    completed: withStatus.filter((c) => c.displayStatus === EnumCampaignStatus.COMPLETED).length,
+  };
+
+  const filtered = query.status ? withStatus.filter((c) => c.displayStatus === query.status) : withStatus;
+
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const result = filtered.slice((page - 1) * limit, (page - 1) * limit + limit);
+
+  return {
+    meta: { page, limit, total: filtered.length, totalPage: Math.ceil(filtered.length / limit) || 1 },
+    summary,
+    result,
+  };
 };
 
 const deleteCampaign = async (userData: AuthUserPayload, payload: { campaignId?: string }) => {

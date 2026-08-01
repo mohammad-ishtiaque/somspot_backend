@@ -17,7 +17,8 @@
     "prettier:fix": "prettier --write .",
     "lint-prettier": "yarn lint:check && yarn prettier:check",
     "make:file": "tsx src/util/generateModule.ts",
-    "seed:admin": "tsx src/seedAdmin.ts"
+    "seed:admin": "tsx src/seedAdmin.ts",
+    "fix:legacy-categories": "tsx src/fixLegacyCategoryFields.ts"
   },
   "lint-staged": {
     "src/**/*.{js,ts}": "eslint --fix"

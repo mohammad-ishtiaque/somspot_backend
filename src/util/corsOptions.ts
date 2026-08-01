@@ -8,7 +8,8 @@ const corsOptions = {
       allowedOrigins.includes(origin) ||
       origin.startsWith("http://10.10.20.") ||
       origin.startsWith("http://3.76.70") ||
-      origin.startsWith("http://localhost:5173")
+      origin.startsWith("http://localhost:5173") ||
+      origin.startsWith("http://localhost:3008")
     ) {
       return callback(null, true);
     }

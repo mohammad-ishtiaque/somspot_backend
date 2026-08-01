@@ -6,7 +6,9 @@ import Business from "../business/Business";
 import Subscription from "../subscription/Subscription";
 import Auth from "../auth/Auth";
 import User from "../user/User";
-import { EnumBusinessStatus, EnumCampaignStatus, EnumSubscriptionStatus, EnumUserRole } from "../../../util/enum";
+import Category from "../category/Category";
+import { CreatorService } from "../creator/creator.service";
+import { EnumBusinessStatus, EnumCampaignStatus, EnumCategoryType, EnumSubscriptionStatus, EnumUserRole } from "../../../util/enum";
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -207,5 +209,23 @@ describe("CampaignService", () => {
     const onlyAssigned = await CampaignService.adminGetAll({ status: "influencers_assigned" });
     expect(onlyAssigned.result).toHaveLength(1);
     expect(onlyAssigned.result[0].name).toBe("Somali Sports Week Promo");
+  });
+
+  it("includes each assigned creator's category label (Figma: 'Ahmed Hassan • Food Creator')", async () => {
+    const b = await setupEntitledMerchant();
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO" });
+
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Ahmed Hassan", email: "ahmed@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    const creatorUser = await User.create({ authId, name: "Ahmed Hassan", email: "ahmed@somspot.so" });
+    const food = await Category.create({ name: "Food", slug: "food", type: EnumCategoryType.CREATOR });
+    await CreatorService.updateProfile({ userId: String(creatorUser._id), role: EnumUserRole.CREATOR } as any, { category: String(food._id) });
+
+    await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: String(creatorUser._id) });
+
+    const { result } = await CampaignService.getApplications(merchant as any, { campaignId: String(c._id) });
+    expect(result).toHaveLength(1);
+    expect((result[0] as any).creator.name).toBe("Ahmed Hassan");
+    expect((result[0] as any).creator.category.name).toBe("Food");
   });
 });

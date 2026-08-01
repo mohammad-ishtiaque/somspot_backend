@@ -2,6 +2,7 @@ const { status } = require("http-status");
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
+import { isPrivileged } from "../../../util/authz";
 import {
   EnumCampaignStatus,
   EnumCategoryType,
@@ -20,7 +21,9 @@ import Payout from "./Payout";
 // ---------------- Profile & socials ----------------
 
 const getMyProfile = async (userData: AuthUserPayload) => {
-  let profile = await Creator.findOne({ user: userData.userId }).lean();
+  let profile = await Creator.findOne({ user: userData.userId })
+    .populate([{ path: "category", select: "name slug icon" }])
+    .lean();
   if (!profile) {
     const created = await Creator.create({ user: userData.userId });
     profile = created.toObject();
@@ -53,7 +56,7 @@ const updateProfile = async (
       },
     },
     { new: true, upsert: true },
-  );
+  ).populate([{ path: "category", select: "name slug icon" }]);
   return profile;
 };
 
@@ -93,7 +96,11 @@ const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
 
   const { meta, result } = await new QueryBuilder(
     CampaignApplication.find(base)
-      .populate([{ path: "campaign", select: "name videoLengthSec pricePerClaim business" }])
+      .populate([{
+        path: "campaign",
+        select: "name videoLengthSec pricePerClaim business",
+        populate: { path: "business", select: "name logo" },
+      }])
       .lean(),
     query,
   ).execute([]);
@@ -103,7 +110,11 @@ const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
 const getTask = async (userData: AuthUserPayload, query: { applicationId?: string }) => {
   validateFields(query, ["applicationId"]);
   const task = await CampaignApplication.findById(query.applicationId)
-    .populate([{ path: "campaign", select: "name about videoLengthSec pricePerClaim business" }])
+    .populate([{
+      path: "campaign",
+      select: "name about videoLengthSec pricePerClaim business",
+      populate: { path: "business", select: "name logo" },
+    }])
     .lean();
   if (!task) throw new ApiError(status.NOT_FOUND, "Task not found");
   if (String(task.creator) !== userData.userId)
@@ -122,7 +133,7 @@ const findOwnApplication = async (userData: AuthUserPayload, applicationId: stri
 // Creator uploads the draft video for merchant approval.
 const submitDraft = async (
   userData: AuthUserPayload,
-  payload: { applicationId?: string; draftVideoUrl?: string },
+  payload: { applicationId?: string; draftVideoUrl?: string; caption?: string },
 ) => {
   validateFields(payload, ["applicationId", "draftVideoUrl"]);
   const application = await findOwnApplication(userData, payload.applicationId!);
@@ -130,6 +141,7 @@ const submitDraft = async (
     throw new ApiError(status.BAD_REQUEST, "You cannot submit a draft at this stage");
 
   application.draftVideoUrl = payload.draftVideoUrl;
+  if (payload.caption !== undefined) application.caption = payload.caption;
   application.status = EnumTaskStatus.DRAFT_SUBMITTED;
   application.submittedAt = new Date();
   await application.save();
@@ -137,9 +149,10 @@ const submitDraft = async (
 };
 
 // Creator posts the live TikTok/IG URL after the merchant approves the draft.
+// `caption` is optional here too, in case it's tweaked for the live post.
 const submitPostUrl = async (
   userData: AuthUserPayload,
-  payload: { applicationId?: string; postUrl?: string },
+  payload: { applicationId?: string; postUrl?: string; caption?: string },
 ) => {
   validateFields(payload, ["applicationId", "postUrl"]);
   const application = await findOwnApplication(userData, payload.applicationId!);
@@ -147,6 +160,7 @@ const submitPostUrl = async (
     throw new ApiError(status.BAD_REQUEST, "Your draft has not been approved yet");
 
   application.postUrl = payload.postUrl;
+  if (payload.caption !== undefined) application.caption = payload.caption;
   application.status = EnumTaskStatus.VERIFYING;
   await application.save();
   return application;
@@ -313,6 +327,33 @@ const adminGetCreatorProfile = async (query: { userId?: string }) => {
   return attachTaskCounts(profile);
 };
 
+// Merchant's "View Profile" from the Influencers tab — same shape as the
+// admin picker's profile, but scoped: only for a creator actually assigned
+// to one of this merchant's own campaigns, not open browsing of any creator.
+const getAssignedCreatorProfile = async (userData: AuthUserPayload, query: { userId?: string }) => {
+  validateFields(query, ["userId"]);
+
+  if (!isPrivileged(userData.role)) {
+    const myCampaigns = await Campaign.find({ merchant: userData.userId }).select("_id").lean();
+    const isAssigned = await CampaignApplication.exists({
+      campaign: { $in: myCampaigns.map((c) => c._id) },
+      creator: query.userId,
+    });
+    if (!isAssigned)
+      throw new ApiError(status.FORBIDDEN, "This creator isn't assigned to any of your campaigns");
+  }
+
+  const profile = await Creator.findOne({ user: query.userId })
+    .populate([
+      { path: "user", select: "name profile_image email" },
+      { path: "category", select: "name slug icon" },
+    ])
+    .lean();
+  if (!profile) throw new ApiError(status.NOT_FOUND, "Creator not found");
+
+  return attachTaskCounts(profile);
+};
+
 // Public: published creator content for a business (consumer "Creator" tab on
 // the business-detail screen — "see what local creators are saying").
 const getBusinessContent = async (query: { businessId?: string }) => {
@@ -350,6 +391,7 @@ const CreatorService = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  getAssignedCreatorProfile,
 };
 
 export { CreatorService };

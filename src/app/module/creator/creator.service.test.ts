@@ -4,6 +4,7 @@ import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler
 import { CreatorService } from "./creator.service";
 import { CampaignService } from "../campaign/campaign.service";
 import Campaign from "../campaign/Campaign";
+import Business from "../business/Business";
 import Auth from "../auth/Auth";
 import User from "../user/User";
 import Category from "../category/Category";
@@ -64,7 +65,8 @@ describe("CreatorService", () => {
       followerCount: 50000,
       engagementRate: 4.2,
     });
-    expect(String(profile.category)).toBe(String(food._id));
+    expect(String((profile.category as any)._id)).toBe(String(food._id));
+    expect((profile.category as any).name).toBe("Food");
     expect(profile.followerCount).toBe(50000);
     expect(profile.engagementRate).toBe(4.2);
   });
@@ -136,5 +138,89 @@ describe("CreatorService", () => {
     const profile = await CreatorService.adminGetCreatorProfile({ userId: creator.userId });
     expect((profile as any).category.name).toBe("Food");
     expect((profile as any).doneCount).toBe(0);
+  });
+
+  it("populates category on the creator's own profile (get and update)", async () => {
+    const food = await makeCreatorCategory("Food");
+    const updated = await CreatorService.updateProfile(creator as any, { category: String(food._id) });
+    expect((updated as any).category.name).toBe("Food");
+
+    const fetched = await CreatorService.getMyProfile(creator as any);
+    expect((fetched as any).category.name).toBe("Food");
+  });
+
+  it("accepts an optional caption on submit-draft and submit-post", async () => {
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Creator", email: "creator@somspot.so" });
+    const c = await makePendingCampaign();
+    const app = await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creator.userId } as any);
+
+    const drafted = await CreatorService.submitDraft(creator as any, {
+      applicationId: String((app as any)._id),
+      draftVideoUrl: "https://cdn.somspot.so/draft.mp4",
+      caption: "Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot",
+    });
+    expect(drafted.caption).toBe("Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot");
+
+    await CampaignService.reviewDraft(
+      { userId: String(c.merchant), role: EnumUserRole.MERCHANT } as any,
+      { applicationId: String((app as any)._id), action: "approve" },
+    );
+    const posted = await CreatorService.submitPostUrl(creator as any, {
+      applicationId: String((app as any)._id),
+      postUrl: "https://tiktok.com/@ahmed/video/1",
+      caption: "Updated caption for the live post",
+    });
+    expect(posted.caption).toBe("Updated caption for the live post");
+  });
+
+  it("populates the business name on a creator's tasks", async () => {
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Creator", email: "creator@somspot.so" });
+
+    const business = await Business.create({ owner: new mongoose.Types.ObjectId(), name: "Somali Tech Store", category: new mongoose.Types.ObjectId() });
+    const c = await Campaign.create({
+      merchant: new mongoose.Types.ObjectId(),
+      business: business._id,
+      name: "New iPhone Launch",
+      status: EnumCampaignStatus.PENDING_REVIEW,
+      pricePerClaim: 5,
+    });
+    const app = await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creator.userId } as any);
+
+    const { result } = await CreatorService.getMyTasks(creator as any, {});
+    expect((result[0] as any).campaign.business.name).toBe("Somali Tech Store");
+
+    const task = await CreatorService.getTask(creator as any, { applicationId: String((app as any)._id) });
+    expect((task as any).campaign.business.name).toBe("Somali Tech Store");
+  });
+
+  it("lets a merchant view the profile of a creator assigned to their campaign, but not an unrelated one", async () => {
+    const merchant = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.MERCHANT };
+    const food = await makeCreatorCategory("Food");
+
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Ahmed Hassan", email: "ahmed@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Ahmed Hassan", email: "ahmed@somspot.so" });
+    await CreatorService.updateProfile(creator as any, { category: String(food._id) });
+
+    const c = await Campaign.create({
+      merchant: merchant.userId,
+      business: new mongoose.Types.ObjectId(),
+      name: "Ramadan Fashion Campaign",
+      status: EnumCampaignStatus.PENDING_REVIEW,
+      pricePerClaim: 5,
+    });
+    await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creator.userId } as any);
+
+    const profile = await CreatorService.getAssignedCreatorProfile(merchant as any, { userId: creator.userId });
+    expect((profile as any).category.name).toBe("Food");
+
+    const otherMerchant = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.MERCHANT };
+    await expect(
+      CreatorService.getAssignedCreatorProfile(otherMerchant as any, { userId: creator.userId }),
+    ).rejects.toThrow(/isn't assigned to any of your campaigns/);
   });
 });

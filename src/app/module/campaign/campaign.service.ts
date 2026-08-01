@@ -10,6 +10,7 @@ import Business from "../business/Business";
 import Auth from "../auth/Auth";
 import User from "../user/User";
 import Category from "../category/Category";
+import Creator from "../creator/Creator";
 import CampaignApplication from "../creator/CampaignApplication";
 import Earning from "../creator/Earning";
 import { SubscriptionService } from "../subscription/subscription.service";
@@ -341,13 +342,36 @@ const getApplications = async (userData: AuthUserPayload, query: QueryParams) =>
   validateFields(query, ["campaignId"]);
   await assertOwnsCampaign(userData, String(query.campaignId));
 
+  // `campaignId` isn't a real CampaignApplication field (it's `campaign`) —
+  // QueryBuilder's generic filter would otherwise re-apply it verbatim and
+  // match nothing. Keep it out of what's passed to QueryBuilder.
+  const { campaignId, ...listQuery } = query;
+
   const { meta, result } = await new QueryBuilder(
-    CampaignApplication.find({ campaign: query.campaignId })
+    CampaignApplication.find({ campaign: campaignId })
       .populate([{ path: "creator", select: "name profile_image" }])
       .lean(),
-    query,
+    listQuery,
   ).execute([]);
-  return { meta, result };
+
+  // CampaignApplication.creator refs User, not Creator — the niche label
+  // (Figma: "Food Creator") lives on the separate Creator profile, so it's
+  // merged in with a second lookup rather than a direct populate.
+  const creatorUserIds = result.map((r: any) => r.creator?._id).filter(Boolean);
+  const profiles = await Creator.find({ user: { $in: creatorUserIds } })
+    .select("user category")
+    .populate([{ path: "category", select: "name slug icon" }])
+    .lean();
+  const categoryByUserId = new Map(profiles.map((p: any) => [String(p.user), p.category]));
+
+  const enriched = result.map((r: any) => ({
+    ...r,
+    creator: r.creator
+      ? { ...r.creator, category: categoryByUserId.get(String(r.creator._id)) || null }
+      : r.creator,
+  }));
+
+  return { meta, result: enriched };
 };
 
 // Merchant reviews the creator's uploaded draft video.

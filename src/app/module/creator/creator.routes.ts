@@ -24,6 +24,8 @@ router
   .patch("/payout/process", auth(config.auth_level.admin), CreatorController.processPayout)
   // admin — creator discovery for assigning to a campaign
   .get("/admin/list", auth(config.auth_level.admin), CreatorController.adminListCreators)
-  .get("/admin/get", auth(config.auth_level.admin), CreatorController.adminGetCreatorProfile);
+  .get("/admin/get", auth(config.auth_level.admin), CreatorController.adminGetCreatorProfile)
+  // merchant — "View Profile" on the Influencers tab, scoped to creators assigned to their own campaigns
+  .get("/merchant/get", auth(config.auth_level.merchant), CreatorController.getAssignedCreatorProfile);
 
 export = router;

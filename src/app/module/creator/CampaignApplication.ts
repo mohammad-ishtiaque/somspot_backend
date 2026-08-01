@@ -11,6 +11,7 @@ export interface ICampaignApplication {
   status: string;
   pitch?: string; // "Tell the merchant why your audience would love this offer"
   draftVideoUrl?: string;
+  caption?: string; // social caption the creator posts alongside the video
   postUrl?: string; // live TikTok/IG URL
   merchantNote?: string;
   draftApproved: boolean;
@@ -34,6 +35,7 @@ const applicationSchema = new Schema<ICampaignApplication>(
     },
     pitch: { type: String },
     draftVideoUrl: { type: String },
+    caption: { type: String },
     postUrl: { type: String },
     merchantNote: { type: String },
     draftApproved: { type: Boolean, default: false },

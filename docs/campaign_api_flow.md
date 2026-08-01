@@ -43,6 +43,7 @@ working on.
 | [ref](#ref-delete) | `DELETE` | `/campaign/delete` | merchant/admin | Delete a campaign |
 | [ref](#ref-apps) | `GET` | `/campaign/applications` | merchant/admin | View assigned creators (read-only) |
 | [ref](#ref-admin-list) | `GET` | `/campaign/admin/list` | admin | Every campaign, all merchants |
+| [ref](#ref-merchant-view) | `GET` | `/creator/merchant/get` | merchant | "View Profile" — a creator assigned to your own campaign |
 
 ---
 
@@ -126,6 +127,9 @@ Body (JSON, all optional)
 | `category` | no | a **creator**-type Category id (from 0a) — validated; `400 Invalid creator category` if it doesn't exist or is the wrong type |
 | `followerCount` | no | self-reported number |
 | `engagementRate` | no | self-reported percentage |
+
+Response (and `GET /creator/profile`) returns `category` **populated**
+(`name`/`slug`/`icon`), not just the raw id.
 
 ```
 POST /creator/link-social
@@ -268,29 +272,35 @@ Auth: creator
 Query: applicationId — required
 ```
 
+Both populate `campaign` (name, about, videoLengthSec, pricePerClaim), and
+`campaign.business` one level deeper (name, logo) — so the business name is
+available without a second call.
+
 ```
 PATCH /creator/submit-draft
 Auth: creator
-Body (JSON): { "applicationId": "<id>", "draftVideoUrl": "https://..." }
+Body (JSON): { "applicationId": "<id>", "draftVideoUrl": "https://...", "caption": "Best Pizza in Mogadishu! 🔥 #SomSpot" }
 ```
 
-| Field | Required |
-|---|---|
-| `applicationId` | yes |
-| `draftVideoUrl` | yes — **not a file upload**, a plain string. Host the video elsewhere and paste the link. |
+| Field | Required | Notes |
+|---|---|---|
+| `applicationId` | yes | |
+| `draftVideoUrl` | yes | **not a file upload**, a plain string. Host the video elsewhere and paste the link. |
+| `caption` | no | the social caption shown alongside the video on the merchant's Content tab |
 
 Only works while the task is `approved` and no draft has been approved yet.
 
 ```
 PATCH /creator/submit-post
 Auth: creator
-Body (JSON): { "applicationId": "<id>", "postUrl": "https://tiktok.com/..." }
+Body (JSON): { "applicationId": "<id>", "postUrl": "https://tiktok.com/...", "caption": "Optional — updates the caption too" }
 ```
 
-| Field | Required |
-|---|---|
-| `applicationId` | yes |
-| `postUrl` | yes |
+| Field | Required | Notes |
+|---|---|---|
+| `applicationId` | yes | |
+| `postUrl` | yes | |
+| `caption` | no | overwrites the draft's caption if you want to tweak wording for the live post |
 
 Only works once the merchant has approved the draft (step 6).
 
@@ -412,8 +422,26 @@ Auth: merchant (owner) or admin. Query: `campaignId` (required).
 Auth: merchant (owner) or admin. Query: `campaignId` (required), `page`,
 `limit`.
 
+Each result's `creator` includes `name`, `profile_image`, and `category`
+(populated `name`/`slug`/`icon`) — the "Ahmed Hassan • Food Creator" line.
+`category` is looked up from the separate Creator profile and merged in,
+since `CampaignApplication.creator` refs `User`, not `Creator`.
+
 Can't be used to change assignments — that's admin-only, via
 `/campaign/admin/assign-creator`.
+
+</details>
+
+<a id="ref-merchant-view"></a>
+<details>
+<summary><b>GET /creator/merchant/get</b> — merchant's "View Profile" on the Influencers tab</summary>
+
+Auth: merchant. Query: `userId` — required, the creator's `User._id`.
+
+Same response shape as the admin picker's profile (`bio`, `category`,
+self-reported `followerCount`/`engagementRate`, `activeCount`/`pendingCount`/
+`doneCount`) — but scoped: `403` unless that creator is actually assigned to
+one of *your* campaigns. Not open browsing like `/creator/admin/get`.
 
 </details>
 

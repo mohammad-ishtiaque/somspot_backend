@@ -78,6 +78,11 @@ const adminGetCreatorProfile = catchAsync(async (req: Request, res: Response) =>
   sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
 });
 
+const getAssignedCreatorProfile = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.getAssignedCreatorProfile(getAuthUser(req), req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
+});
+
 const CreatorController = {
   getMyProfile,
   updateProfile,
@@ -93,6 +98,7 @@ const CreatorController = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  getAssignedCreatorProfile,
 };
 
 export { CreatorController };

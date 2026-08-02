@@ -60,6 +60,7 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
     offer: payload.offer,
     name: payload.name,
     about: payload.about,
+    goal: payload.goal,
     objective: payload.objective,
     contentType: payload.contentType,
     influencerCategory: payload.influencerCategory,
@@ -142,7 +143,11 @@ const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => 
   const { meta, result } = await new QueryBuilder(
     Campaign.find({ merchant: userData.userId })
       .populate([
-        { path: "business", select: "name logo" },
+        {
+          path: "business",
+          select: "name logo category",
+          populate: { path: "category", select: "name slug icon" },
+        },
         { path: "influencerCategory", select: "name slug icon" },
       ])
       .lean(),
@@ -166,17 +171,24 @@ const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => 
 
 const getCampaign = async (userData: AuthUserPayload, query: { campaignId?: string }) => {
   validateFields(query, ["campaignId"]);
+  // Authorization uses the unpopulated lookup — populate() silently resolves
+  // a dangling/missing ref to null, which must never affect an ownership check.
+  await assertOwnsCampaign(userData, String(query.campaignId));
+
   const campaign = await Campaign.findById(query.campaignId)
     .populate([
-      { path: "business", select: "name logo address category" },
+      {
+        path: "business",
+        select: "name logo address phone category",
+        populate: { path: "category", select: "name slug icon" },
+      },
+      { path: "merchant", select: "name email phoneNumber" },
       { path: "offer", select: "title discountLabel" },
       { path: "invitedCreator", select: "name email" },
       { path: "influencerCategory", select: "name slug icon" },
     ])
     .lean();
   if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
-  if (!isPrivileged(userData.role) && String(campaign.merchant) !== userData.userId)
-    throw new ApiError(status.FORBIDDEN, "Not your campaign");
 
   const applications = await CampaignApplication.find({ campaign: campaign._id }).select("status").lean();
   return { ...campaign, ...buildCampaignStats(campaign, applications) };
@@ -187,7 +199,7 @@ const updateCampaign = async (userData: AuthUserPayload, payload: Record<string,
   const campaign = await assertOwnsCampaign(userData, String(payload.campaignId));
   if (payload.influencerCategory !== undefined) await assertCreatorCategory(payload.influencerCategory);
 
-  const fields = ["name", "about", "objective", "contentType", "influencerCategory", "startDate", "endDate", "contentRequirements", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
+  const fields = ["name", "about", "goal", "objective", "contentType", "influencerCategory", "startDate", "endDate", "contentRequirements", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
   for (const f of fields) if (payload[f] !== undefined) (campaign as any)[f] = payload[f];
   // pricePerClaim is always derived from videoLengthSec — never merchant-editable.
   if (payload.videoLengthSec !== undefined) campaign.pricePerClaim = priceForVideoLength(Number(payload.videoLengthSec));
@@ -287,8 +299,12 @@ const adminGetAll = async (query: QueryParams) => {
 
   const campaigns = await Campaign.find(base)
     .populate([
-      { path: "business", select: "name logo" },
-      { path: "merchant", select: "name email" },
+      {
+        path: "business",
+        select: "name logo category",
+        populate: { path: "category", select: "name slug icon" },
+      },
+      { path: "merchant", select: "name email phoneNumber" },
       { path: "influencerCategory", select: "name slug icon" },
     ])
     .sort({ createdAt: -1 })
@@ -337,18 +353,27 @@ const deleteCampaign = async (userData: AuthUserPayload, payload: { campaignId?:
 };
 
 // Merchant views the creators admin assigned to their campaign (read-only —
-// assignment itself can't be changed from the merchant app).
+// assignment itself can't be changed from the merchant app). Also serves the
+// Content tab via ?hasContent=true (see below).
 const getApplications = async (userData: AuthUserPayload, query: QueryParams) => {
   validateFields(query, ["campaignId"]);
   await assertOwnsCampaign(userData, String(query.campaignId));
 
-  // `campaignId` isn't a real CampaignApplication field (it's `campaign`) —
-  // QueryBuilder's generic filter would otherwise re-apply it verbatim and
-  // match nothing. Keep it out of what's passed to QueryBuilder.
-  const { campaignId, ...listQuery } = query;
+  // `campaignId` and `hasContent` aren't real CampaignApplication fields —
+  // QueryBuilder's generic filter would otherwise re-apply them verbatim
+  // and match nothing. Keep them out of what's passed to QueryBuilder.
+  const { campaignId, hasContent, ...listQuery } = query;
+
+  const base: Record<string, unknown> = { campaign: campaignId };
+  // Content tab: creators who have submitted a draft at some point, no
+  // matter the current status. `status` alone can't express this — once a
+  // merchant approves a draft, status reverts to "approved", identical to a
+  // creator who hasn't submitted anything yet, even though draftVideoUrl is
+  // still sitting right there on the record.
+  if (hasContent === "true") base.draftVideoUrl = { $exists: true, $ne: null };
 
   const { meta, result } = await new QueryBuilder(
-    CampaignApplication.find({ campaign: campaignId })
+    CampaignApplication.find(base)
       .populate([{ path: "creator", select: "name profile_image" }])
       .lean(),
     listQuery,
@@ -372,6 +397,34 @@ const getApplications = async (userData: AuthUserPayload, query: QueryParams) =>
   }));
 
   return { meta, result: enriched };
+};
+
+// Merchant views one submission's full detail (Figma: tapping a card on the
+// Content tab). Same shape/enrichment as one item from getApplications —
+// draftVideoUrl/caption/postUrl are only present once the creator has
+// actually submitted that stage; a freshly-assigned creator (status
+// "approved") legitimately has none of that yet, that's not a missing field.
+const getApplication = async (userData: AuthUserPayload, query: { applicationId?: string }) => {
+  validateFields(query, ["applicationId"]);
+  const application = await CampaignApplication.findById(query.applicationId)
+    .populate([{ path: "creator", select: "name profile_image" }])
+    .lean();
+  if (!application) throw new ApiError(status.NOT_FOUND, "Application not found");
+  await assertOwnsCampaign(userData, String(application.campaign));
+
+  const creatorProfile = application.creator
+    ? await Creator.findOne({ user: (application.creator as any)._id })
+        .select("category")
+        .populate([{ path: "category", select: "name slug icon" }])
+        .lean()
+    : null;
+
+  return {
+    ...application,
+    creator: application.creator
+      ? { ...(application.creator as any), category: creatorProfile?.category || null }
+      : application.creator,
+  };
 };
 
 // Merchant reviews the creator's uploaded draft video.
@@ -446,6 +499,7 @@ const CampaignService = {
   assignCreator,
   adminGetAll,
   getApplications,
+  getApplication,
   reviewDraft,
   verifyPublication,
 };

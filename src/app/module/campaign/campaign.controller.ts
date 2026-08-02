@@ -52,6 +52,11 @@ const getApplications = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Applications retrieved", data: result });
 });
 
+const getApplication = catchAsync(async (req: Request, res: Response) => {
+  const result = await CampaignService.getApplication(getAuthUser(req), req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Application retrieved", data: result });
+});
+
 const reviewDraft = catchAsync(async (req: Request, res: Response) => {
   const result = await CampaignService.reviewDraft(getAuthUser(req), req.body);
   sendResponse(res, { statusCode: 200, success: true, message: "Draft reviewed", data: result });
@@ -72,6 +77,7 @@ const CampaignController = {
   assignCreator,
   adminGetAll,
   getApplications,
+  getApplication,
   reviewDraft,
   verifyPublication,
 };

@@ -228,4 +228,117 @@ describe("CampaignService", () => {
     expect((result[0] as any).creator.name).toBe("Ahmed Hassan");
     expect((result[0] as any).creator.category.name).toBe("Food");
   });
+
+  it("fetches one submission's detail — empty content fields before a draft is submitted, filled in after", async () => {
+    const b = await setupEntitledMerchant();
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO Pizza" });
+
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Ahmed Hassan", email: "ahmed@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    const creatorUser = await User.create({ authId, name: "Ahmed Hassan", email: "ahmed@somspot.so" });
+    const food = await Category.create({ name: "Food", slug: "food", type: EnumCategoryType.CREATOR });
+    await CreatorService.updateProfile({ userId: String(creatorUser._id), role: EnumUserRole.CREATOR } as any, { category: String(food._id) });
+    const app = await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: String(creatorUser._id) });
+
+    // Freshly assigned — no content submitted yet, this is expected, not a bug.
+    const beforeDraft = await CampaignService.getApplication(merchant as any, { applicationId: String((app as any)._id) });
+    expect((beforeDraft as any).status).toBe("approved");
+    expect((beforeDraft as any).draftVideoUrl).toBeUndefined();
+    expect((beforeDraft as any).creator.name).toBe("Ahmed Hassan");
+    expect((beforeDraft as any).creator.category.name).toBe("Food");
+
+    await CreatorService.submitDraft(
+      { userId: String(creatorUser._id), role: EnumUserRole.CREATOR } as any,
+      {
+        applicationId: String((app as any)._id),
+        draftVideoUrl: "https://cdn.somspot.so/draft.mp4",
+        caption: "Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot",
+      },
+    );
+
+    const afterDraft = await CampaignService.getApplication(merchant as any, { applicationId: String((app as any)._id) });
+    expect((afterDraft as any).status).toBe("draft_submitted");
+    expect((afterDraft as any).draftVideoUrl).toBe("https://cdn.somspot.so/draft.mp4");
+    expect((afterDraft as any).caption).toBe("Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot");
+
+    const otherMerchant = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.MERCHANT };
+    await expect(
+      CampaignService.getApplication(otherMerchant as any, { applicationId: String((app as any)._id) }),
+    ).rejects.toThrow(/Not your campaign/);
+  });
+
+  it("the Content tab (?hasContent=true) includes already-reviewed drafts, not just ones awaiting review", async () => {
+    const b = await setupEntitledMerchant();
+    const c = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "BOGO Pizza", targetCreators: 3 });
+
+    const makeAssignedCreator = async (name: string) => {
+      const authId = new mongoose.Types.ObjectId();
+      await Auth.create({ _id: authId, name, email: `${name}@somspot.so`, password: "Passw0rd!", role: EnumUserRole.CREATOR });
+      const u = await User.create({ authId, name, email: `${name}@somspot.so` });
+      const app = await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: String(u._id) });
+      return { user: u, app };
+    };
+
+    // Never submitted anything — must NOT show up in the Content tab.
+    await makeAssignedCreator("NoSubmission");
+
+    // Submitted, still awaiting merchant review — status stays "draft_submitted".
+    const pending = await makeAssignedCreator("PendingReview");
+    await CreatorService.submitDraft(
+      { userId: String(pending.user._id), role: EnumUserRole.CREATOR } as any,
+      { applicationId: String((pending.app as any)._id), draftVideoUrl: "https://cdn.somspot.so/pending.mp4" },
+    );
+
+    // Submitted AND already reviewed by the merchant — status reverts to
+    // "approved" (same value as never-submitted), but the content is still
+    // there and must still show up. This is the exact case a plain
+    // ?status=draft_submitted filter would incorrectly hide.
+    const reviewed = await makeAssignedCreator("AlreadyReviewed");
+    await CreatorService.submitDraft(
+      { userId: String(reviewed.user._id), role: EnumUserRole.CREATOR } as any,
+      { applicationId: String((reviewed.app as any)._id), draftVideoUrl: "https://cdn.somspot.so/reviewed.mp4" },
+    );
+    await CampaignService.reviewDraft(merchant as any, { applicationId: String((reviewed.app as any)._id), action: "approve" });
+
+    const influencersTab = await CampaignService.getApplications(merchant as any, { campaignId: String(c._id) });
+    expect(influencersTab.result).toHaveLength(3); // all assigned creators, content or not
+
+    const contentTab = await CampaignService.getApplications(merchant as any, { campaignId: String(c._id), hasContent: "true" } as any);
+    const names = contentTab.result.map((r: any) => r.creator.name).sort();
+    expect(names).toEqual(["AlreadyReviewed", "PendingReview"]);
+
+    const reviewedRow = contentTab.result.find((r: any) => r.creator.name === "AlreadyReviewed") as any;
+    expect(reviewedRow.status).toBe("approved"); // reverted, but still correctly included
+    expect(reviewedRow.draftVideoUrl).toBe("https://cdn.somspot.so/reviewed.mp4");
+  });
+
+  it("returns the admin Campaign Info view: merchant contact, business category, and goal", async () => {
+    const merchantAuthId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: merchantAuthId, name: "Style House", email: "style@somspot.so", password: "Passw0rd!", role: EnumUserRole.MERCHANT });
+    await User.create({ _id: merchant.userId, authId: merchantAuthId, name: "Style House", email: "style@somspot.so", phoneNumber: "+252612345678" });
+
+    const fashionCategory = await Category.create({ name: "Fashion", slug: "fashion", type: EnumCategoryType.MERCHANT });
+    const b = await Business.create({ owner: merchant.userId, name: "Style House Mogadishu", category: fashionCategory._id, status: EnumBusinessStatus.APPROVED });
+
+    const c = await CampaignService.createCampaign(merchant as any, {
+      business: String(b._id),
+      name: "Ramadan Fashion Campaign",
+      about: "Showcase our new Ramadan modest fashion collection.",
+      goal: "Increase brand awareness and drive sales during the Ramadan season.",
+    });
+
+    const detail = await CampaignService.getCampaign(merchant as any, { campaignId: String(c._id) });
+    expect((detail as any).merchant.name).toBe("Style House");
+    expect((detail as any).merchant.email).toBe("style@somspot.so");
+    expect((detail as any).business.name).toBe("Style House Mogadishu");
+    expect((detail as any).business.category.name).toBe("Fashion");
+    expect(detail.goal).toBe("Increase brand awareness and drive sales during the Ramadan season.");
+    expect(detail.about).toBe("Showcase our new Ramadan modest fashion collection.");
+
+    // adminGetAll's list rows need the same populate for the Category column.
+    const list = await CampaignService.adminGetAll({});
+    const row = list.result.find((r: any) => r.name === "Ramadan Fashion Campaign") as any;
+    expect(row.business.category.name).toBe("Fashion");
+    expect(row.merchant.name).toBe("Style House");
+  });
 });

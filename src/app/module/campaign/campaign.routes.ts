@@ -12,6 +12,7 @@ router
   .patch("/update", auth(config.auth_level.merchant), CampaignController.updateCampaign)
   .delete("/delete", auth(config.auth_level.merchant), CampaignController.deleteCampaign)
   .get("/applications", auth(config.auth_level.merchant), CampaignController.getApplications)
+  .get("/application", auth(config.auth_level.merchant), CampaignController.getApplication)
   .patch("/review-draft", auth(config.auth_level.merchant), CampaignController.reviewDraft)
   .patch("/verify-publication", auth(config.auth_level.merchant), CampaignController.verifyPublication)
   // ---- admin ----

@@ -7,7 +7,8 @@ export interface ICampaign {
   business: Types.ObjectId;
   offer?: Types.ObjectId;
   name: string;
-  about?: string;
+  about?: string; // Figma: "Description"
+  goal?: string; // Figma: "Campaign Goal" — distinct from the description
   objective?: string; // EnumCampaignObjective
   contentType?: string; // EnumCampaignContentType
   influencerCategory?: Types.ObjectId; // ref Category (type: creator) — what kind of creator the merchant wants
@@ -32,6 +33,7 @@ const campaignSchema = new Schema<ICampaign>(
     offer: { type: Schema.Types.ObjectId, ref: "Offer" },
     name: { type: String, required: true, trim: true },
     about: { type: String },
+    goal: { type: String },
     objective: { type: String, enum: Object.values(EnumCampaignObjective) },
     contentType: { type: String, enum: Object.values(EnumCampaignContentType) },
     influencerCategory: { type: Schema.Types.ObjectId, ref: "Category" },

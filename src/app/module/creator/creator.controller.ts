@@ -47,6 +47,16 @@ const getWallet = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Wallet retrieved", data: result });
 });
 
+const getWalletAnalytics = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.getWalletAnalytics(getAuthUser(req), req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Wallet analytics retrieved", data: result });
+});
+
+const getDashboard = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.getDashboard(getAuthUser(req));
+  sendResponse(res, { statusCode: 200, success: true, message: "Dashboard retrieved", data: result });
+});
+
 const requestPayout = catchAsync(async (req: Request, res: Response) => {
   const result = await CreatorService.requestPayout(getAuthUser(req), req.body);
   sendResponse(res, { statusCode: 201, success: true, message: "Payout requested", data: result });
@@ -93,6 +103,8 @@ const CreatorController = {
   submitDraft,
   submitPostUrl,
   getWallet,
+  getWalletAnalytics,
+  getDashboard,
   requestPayout,
   getPayouts,
   processPayout,

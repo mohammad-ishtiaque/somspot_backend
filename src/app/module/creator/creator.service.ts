@@ -1,4 +1,5 @@
 const { status } = require("http-status");
+import mongoose from "mongoose";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
@@ -18,6 +19,8 @@ import Category from "../category/Category";
 import User from "../user/User";
 import Earning from "./Earning";
 import Payout from "./Payout";
+import Claim from "../claim/Claim";
+import Notification from "../notification/Notification";
 
 // ---------------- Profile & socials ----------------
 
@@ -109,7 +112,7 @@ const linkSocial = async (
 
 const TASK_CAMPAIGN_POPULATE = {
   path: "campaign",
-  select: "name about endDate videoLengthSec pricePerClaim business merchant",
+  select: "name about endDate contentType videoLengthSec pricePerClaim business merchant offer",
   populate: [
     { path: "business", select: "name logo" },
     { path: "merchant", select: "name" },
@@ -231,29 +234,170 @@ const submitPostUrl = async (
 
 // ---------------- Earnings & payouts ----------------
 
-const getWallet = async (userData: AuthUserPayload) => {
-  const [agg] = await Earning.aggregate([
-    { $match: { creator: (await import("mongoose")).Types.ObjectId.createFromHexString(userData.userId) } },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: "$amount" },
-        available: { $sum: { $cond: [{ $eq: ["$status", "available"] }, "$amount", 0] } },
-        paid: { $sum: { $cond: [{ $eq: ["$status", "paid"] }, "$amount", 0] } },
-      },
-    },
-  ]);
-  const recent = await Earning.find({ creator: userData.userId })
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .populate([{ path: "campaign", select: "name" }])
+// Claims can only be attributed at the campaign-offer level, not to one
+// specific creator's post — if a campaign has several assigned creators
+// they all share the same offer, and there's no per-creator referral
+// tracking. `since` scopes to a window (wallet analytics' period toggle);
+// omit it for a lifetime count (dashboard).
+const getCreatorClaimsCount = async (userId: string, since?: Date) => {
+  const applications = await CampaignApplication.find({ creator: userId }).select("campaign").lean();
+  const campaigns = await Campaign.find({ _id: { $in: applications.map((a) => a.campaign) } })
+    .select("offer")
     .lean();
+  const offerIds = [...new Set(campaigns.map((c) => c.offer).filter(Boolean).map(String))];
+  if (!offerIds.length) return 0;
+
+  const match: Record<string, unknown> = { offer: { $in: offerIds } };
+  if (since) match.createdAt = { $gte: since };
+  return Claim.countDocuments(match);
+};
+
+const getWallet = async (userData: AuthUserPayload) => {
+  const creatorId = mongoose.Types.ObjectId.createFromHexString(userData.userId);
+  const [[agg], [pendingPayoutAgg], recentCommissions] = await Promise.all([
+    Earning.aggregate([
+      { $match: { creator: creatorId } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+          available: { $sum: { $cond: [{ $eq: ["$status", "available"] }, "$amount", 0] } },
+          paid: { $sum: { $cond: [{ $eq: ["$status", "paid"] }, "$amount", 0] } },
+        },
+      },
+    ]),
+    Payout.aggregate([
+      { $match: { creator: creatorId, status: EnumPayoutStatus.PENDING } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+    Earning.find({ creator: userData.userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate([{ path: "campaign", select: "business", populate: { path: "business", select: "name logo" } }])
+      .lean(),
+  ]);
 
   return {
     totalEarnings: agg?.total || 0,
     availableBalance: agg?.available || 0,
     paidOut: agg?.paid || 0,
-    recent,
+    pendingPayout: pendingPayoutAgg?.total || 0,
+    recentCommissions: recentCommissions.map((e: any) => ({
+      _id: e._id,
+      business: e.campaign?.business?.name || null,
+      businessLogo: e.campaign?.business?.logo || null,
+      amount: e.amount,
+      createdAt: e.createdAt,
+    })),
+  };
+};
+
+// Wallet's "Earnings this period" screen. `period` scopes the headline total
+// and the Claims count; the trend chart is always the last 6 months (Figma
+// labels it "$ Monthly" regardless of which period pill is selected).
+// Total Views / Total Clicks / Top Performing Content are intentionally left
+// out — those are TikTok/Instagram metrics with no data source in this app.
+const getWalletAnalytics = async (userData: AuthUserPayload, query: { period?: string }) => {
+  const period = query.period === "7d" || query.period === "all" ? query.period : "30d";
+  const since =
+    period === "7d"
+      ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      : period === "30d"
+        ? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        : undefined;
+
+  const creatorId = mongoose.Types.ObjectId.createFromHexString(userData.userId);
+  const earningMatch: Record<string, unknown> = { creator: creatorId };
+  if (since) earningMatch.createdAt = { $gte: since };
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  const [[periodAgg], claims, trendAgg] = await Promise.all([
+    Earning.aggregate([{ $match: earningMatch }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+    getCreatorClaimsCount(userData.userId, since),
+    Earning.aggregate([
+      { $match: { creator: creatorId, createdAt: { $gte: sixMonthsAgo } } },
+      { $group: { _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } }, total: { $sum: "$amount" } } },
+    ]),
+  ]);
+  const trendByMonth = new Map(trendAgg.map((t: any) => [t._id, t.total]));
+
+  const earningsTrend = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(sixMonthsAgo);
+    d.setMonth(d.getMonth() + (5 - i));
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    earningsTrend.push({
+      month: key,
+      label: d.toLocaleString("en-US", { month: "short" }),
+      total: trendByMonth.get(key) || 0,
+    });
+  }
+
+  return {
+    period,
+    earningsThisPeriod: periodAgg?.total || 0,
+    claims,
+    earningsTrend,
+  };
+};
+
+// Home dashboard: greeting/location, lifetime earnings + pending payout,
+// lifetime claims, and open tasks (Active + Pending stage only — Completed
+// and Published aren't "things to do" so they're left off this screen; see
+// GET /creator/tasks?stage= for the full list). One call for the whole screen.
+const getDashboard = async (userData: AuthUserPayload) => {
+  const creatorId = mongoose.Types.ObjectId.createFromHexString(userData.userId);
+
+  const [user, [earningsAgg], [pendingPayoutAgg], unreadNotifications, claims, openTasksRaw] = await Promise.all([
+    User.findById(userData.userId).select("name profile_image address").lean(),
+    Earning.aggregate([{ $match: { creator: creatorId } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+    Payout.aggregate([
+      { $match: { creator: creatorId, status: EnumPayoutStatus.PENDING } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+    Notification.countDocuments({ toId: userData.userId, isRead: false }),
+    getCreatorClaimsCount(userData.userId),
+    CampaignApplication.find({
+      creator: userData.userId,
+      status: { $in: [EnumTaskStatus.APPROVED, EnumTaskStatus.DRAFT_SUBMITTED] },
+    })
+      .populate([TASK_CAMPAIGN_POPULATE])
+      .sort({ createdAt: -1 })
+      .lean(),
+  ]);
+
+  // "Ready for content" (active) vs "Pending merchant review" (pending) —
+  // status alone can't tell them apart, same derivation as GET /creator/tasks.
+  const activeTasks = openTasksRaw
+    .map((t: any) => ({ ...t, stage: deriveTaskStage(t) }))
+    .filter((t: any) => t.stage === "active" || t.stage === "pending")
+    .slice(0, 5)
+    .map((t: any) => ({
+      _id: t._id,
+      businessName: t.campaign?.business?.name || null,
+      campaignName: t.campaign?.name || null,
+      stage: t.stage,
+      statusLabel: t.stage === "pending" ? "Pending merchant review" : "Ready for content",
+      // The platform a not-yet-submitted task will target isn't captured
+      // anywhere today (it's only set once the creator submits a draft) —
+      // null here for "active" tasks is honest, not a bug.
+      platform: t.platform || null,
+      contentType: t.campaign?.contentType || null,
+    }));
+
+  return {
+    name: user?.name || null,
+    profileImage: user?.profile_image || null,
+    location: user?.address || null,
+    unreadNotifications,
+    totalEarnings: earningsAgg?.total || 0,
+    pendingPayout: pendingPayoutAgg?.total || 0,
+    claims,
+    activeTasks,
   };
 };
 
@@ -449,6 +593,8 @@ const CreatorService = {
   submitDraft,
   submitPostUrl,
   getWallet,
+  getWalletAnalytics,
+  getDashboard,
   requestPayout,
   getPayouts,
   processPayout,

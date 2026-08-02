@@ -45,6 +45,9 @@ working on.
 | [ref](#ref-app) | `GET` | `/campaign/application` | merchant/admin | One submission's full detail, by id |
 | [ref](#ref-admin-list) | `GET` | `/campaign/admin/list` | admin | Every campaign, all merchants |
 | [ref](#ref-merchant-view) | `GET` | `/creator/merchant/get` | merchant | "View Profile" — a creator assigned to your own campaign |
+| [ref](#ref-wallet) | `GET` | `/creator/dashboard` | creator | Home screen — one call |
+| [ref](#ref-wallet) | `GET` | `/creator/wallet` | creator | Wallet screen 1 — balance + recent commissions |
+| [ref](#ref-wallet) | `GET` | `/creator/wallet/analytics` | creator | Wallet screen 2 — earnings this period + trend |
 
 ---
 
@@ -418,7 +421,9 @@ an `Earning` record (pays `commissionAmount` into the creator's wallet).
 Rejecting → `rejected`.
 
 Check it landed: `GET /creator/wallet` (auth: creator) —
-`totalEarnings` / `availableBalance` / `paidOut` + recent earnings.
+`totalEarnings` / `availableBalance` / `paidOut` / `pendingPayout` +
+`recentCommissions`. See [Creator wallet & home dashboard](#ref-wallet)
+below for the full shape.
 
 </details>
 
@@ -575,6 +580,94 @@ includes name/email/phoneNumber.
 | `live` | today outside `startDate`–`endDate` | `approved` |
 | `live` | today within `startDate`–`endDate` (or no dates set) | `active` |
 | `rejected` / `paused` / `completed` | — | passes through unchanged |
+
+</details>
+
+<a id="ref-wallet"></a>
+<details>
+<summary><b>Creator wallet & home dashboard</b> — GET /creator/wallet, /creator/wallet/analytics, /creator/dashboard</summary>
+
+**A note on what's real vs. not included:** the Wallet Analytics and Home
+screens in Figma also show "Total Views," "Total Clicks," and "Top
+Performing Content" — those are TikTok/Instagram metrics and there's no
+social API integration wired up to source them (same situation as
+`followerCount`/`engagementRate` on the creator profile, which are
+self-reported for the same reason). Per your call, these are **left out**
+rather than faked or guessed at — everything below is either read straight
+from the ledger or computed from real, linked records.
+
+```
+GET /creator/wallet
+Auth: creator
+```
+Wallet screen 1 (balance + recent commissions):
+
+| Field | Source |
+|---|---|
+| `availableBalance` | sum of `Earning` where `status: "available"` |
+| `totalEarnings` | sum of all `Earning` (available + paid) |
+| `paidOut` | sum of `Earning` where `status: "paid"` |
+| `pendingPayout` | sum of `Payout` where `status: "pending"` (an outstanding withdrawal request) |
+| `recentCommissions` | last 10 `Earning` entries, each with the campaign's **business** name/logo, amount, date |
+
+```
+GET /creator/wallet/analytics
+Auth: creator
+Query (optional): period (7d | 30d | all, default 30d)
+```
+Wallet screen 2 ("Earnings this period"):
+
+| Field | Source |
+|---|---|
+| `period` | echoes back the resolved period |
+| `earningsThisPeriod` | sum of `Earning` created within the period |
+| `claims` | count of `Claim` docs against the offer(s) linked to campaigns you've been assigned to, within the period — see note below |
+| `earningsTrend` | always the last 6 calendar months (independent of `period` — Figma labels the chart "$ Monthly"), `[{ month: "2026-03", label: "Mar", total }]`, zero-filled for months with no earnings |
+
+**Claims attribution note:** a `Claim` is recorded against an `Offer`, and a
+`Campaign` links to one `Offer` — but a campaign can have several assigned
+creators all promoting the *same* offer. There's no referral/coupon-code
+system to say which specific creator's post drove which claim, so `claims`
+counts every claim on offers linked to your campaigns, not claims
+demonstrably caused by your content specifically.
+
+```
+GET /creator/dashboard
+Auth: creator
+```
+Home screen — greeting, earnings summary, and open tasks, in one call:
+
+| Field | Source |
+|---|---|
+| `name`, `profileImage` | `User.name` / `User.profile_image` |
+| `location` | `User.address` |
+| `unreadNotifications` | unread `Notification` count |
+| `totalEarnings` | same as wallet's `totalEarnings` |
+| `pendingPayout` | same as wallet's `pendingPayout` |
+| `claims` | same as analytics' `claims`, lifetime (no period) |
+| `activeTasks` | up to 5 tasks in stage `active` or `pending` (Completed/Published are excluded — this list is "things to do," not the full task history) |
+
+Each `activeTasks` entry:
+```json
+{
+  "_id": "...",
+  "businessName": "Mogadishu Pizza",
+  "campaignName": "Buy 1 Get 1 Free Promo",
+  "stage": "pending",
+  "statusLabel": "Pending merchant review",
+  "platform": null,
+  "contentType": "reel"
+}
+```
+`statusLabel` is `"Pending merchant review"` (stage `pending`) or `"Ready
+for content"` (stage `active`), matching the two badges on the Home screen.
+`platform` is only non-null once the creator has actually submitted a draft
+(it's part of what `submit-draft` records) — for an `active` task nothing
+has been submitted yet, so there's no reliable source for a "TikTok Video"
+style label; `contentType` (from the campaign, e.g. `reel`/`story`) is the
+closest real field available. If you want a platform shown before
+submission, that would need to be captured at assign-time — flag it if you
+want that added.
 
 </details>
 

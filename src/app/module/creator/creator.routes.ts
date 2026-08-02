@@ -17,8 +17,11 @@ router
   .get("/task", auth(config.auth_level.creator), CreatorController.getTask)
   .patch("/submit-draft", auth(config.auth_level.creator), CreatorController.submitDraft)
   .patch("/submit-post", auth(config.auth_level.creator), CreatorController.submitPostUrl)
+  // home
+  .get("/dashboard", auth(config.auth_level.creator), CreatorController.getDashboard)
   // earnings
   .get("/wallet", auth(config.auth_level.creator), CreatorController.getWallet)
+  .get("/wallet/analytics", auth(config.auth_level.creator), CreatorController.getWalletAnalytics)
   .post("/payout/request", auth(config.auth_level.creator), CreatorController.requestPayout)
   .get("/payout/list", auth(config.auth_level.creator), CreatorController.getPayouts)
   .patch("/payout/process", auth(config.auth_level.admin), CreatorController.processPayout)

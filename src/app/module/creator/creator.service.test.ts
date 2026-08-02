@@ -9,7 +9,10 @@ import Auth from "../auth/Auth";
 import User from "../user/User";
 import Category from "../category/Category";
 import Earning from "./Earning";
-import { EnumCampaignStatus, EnumUserRole, EnumCategoryType } from "../../../util/enum";
+import Payout from "./Payout";
+import Offer from "../offer/Offer";
+import Claim from "../claim/Claim";
+import { EnumCampaignStatus, EnumUserRole, EnumCategoryType, EnumPayoutStatus } from "../../../util/enum";
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -49,6 +52,99 @@ describe("CreatorService", () => {
     expect(w.totalEarnings).toBe(15);
     expect(w.availableBalance).toBe(10);
     expect(w.paidOut).toBe(5);
+  });
+
+  it("returns the wallet balance plus a pending-payout total and business-labeled recent commissions", async () => {
+    const business = await Business.create({ owner: new mongoose.Types.ObjectId(), name: "Somali Tech Store", category: new mongoose.Types.ObjectId() });
+    const c = await Campaign.create({
+      merchant: new mongoose.Types.ObjectId(),
+      business: business._id,
+      name: "New iPhone Launch",
+      status: EnumCampaignStatus.PENDING_REVIEW,
+      pricePerClaim: 5,
+    });
+    await Earning.create({ creator: creator.userId, campaign: c._id, application: new mongoose.Types.ObjectId(), amount: 20, status: "available" });
+    await Payout.create({ creator: creator.userId, amount: 15, status: EnumPayoutStatus.PENDING });
+    await Payout.create({ creator: creator.userId, amount: 100, status: EnumPayoutStatus.PAID }); // must not count toward pendingPayout
+
+    const wallet = await CreatorService.getWallet(creator as any);
+    expect(wallet.availableBalance).toBe(20);
+    expect(wallet.pendingPayout).toBe(15);
+    expect(wallet.recentCommissions).toHaveLength(1);
+    expect(wallet.recentCommissions[0].business).toBe("Somali Tech Store");
+    expect(wallet.recentCommissions[0].amount).toBe(20);
+  });
+
+  it("counts claims for a creator's wallet analytics via the campaign's linked offer, scoped by period", async () => {
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Creator", email: "creator@somspot.so" });
+
+    const business = await Business.create({ owner: new mongoose.Types.ObjectId(), name: "Pizza Place", category: new mongoose.Types.ObjectId() });
+    const offer = await Offer.create({ business: business._id, title: "BOGO", endAt: new Date(Date.now() + 86400000), createdBy: new mongoose.Types.ObjectId() });
+    const c = await Campaign.create({
+      merchant: new mongoose.Types.ObjectId(),
+      business: business._id,
+      offer: offer._id,
+      name: "BOGO Pizza",
+      status: EnumCampaignStatus.PENDING_REVIEW,
+      pricePerClaim: 5,
+    });
+    await CampaignService.assignCreator({ campaignId: String(c._id), creatorUserId: creator.userId } as any);
+
+    // One claim well within the last 30 days, one deliberately backdated past it.
+    await Claim.create({ user: new mongoose.Types.ObjectId(), offer: offer._id, business: business._id, code: "SOM-1", expiresAt: new Date(Date.now() + 86400000) });
+    const old = await Claim.create({ user: new mongoose.Types.ObjectId(), offer: offer._id, business: business._id, code: "SOM-2", expiresAt: new Date(Date.now() + 86400000) });
+    // Raw driver write, bypassing Mongoose's timestamps middleware, which
+    // otherwise re-stamps createdAt back to now on every query-style update.
+    await Claim.collection.updateOne({ _id: old._id }, { $set: { createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) } });
+
+    const monthly = await CreatorService.getWalletAnalytics(creator as any, { period: "30d" });
+    expect(monthly.claims).toBe(1);
+
+    const all = await CreatorService.getWalletAnalytics(creator as any, { period: "all" });
+    expect(all.claims).toBe(2);
+    expect(all.earningsTrend).toHaveLength(6);
+  });
+
+  it("serves the home dashboard in one call: profile, earnings, pending payout, and open (active+pending) tasks only", async () => {
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Abdul Karim", email: "abdul@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Abdul Karim", email: "abdul@somspot.so", address: "Maka Al Mukarama, Mogadishu" });
+
+    // Active: not yet submitted -> "Ready for content".
+    const activeCampaign = await makePendingCampaign();
+    await CampaignService.assignCreator({ campaignId: String(activeCampaign._id), creatorUserId: creator.userId } as any);
+
+    // Pending: draft submitted -> "Pending merchant review".
+    const pendingCampaign = await makePendingCampaign();
+    const pendingApp = await CampaignService.assignCreator({ campaignId: String(pendingCampaign._id), creatorUserId: creator.userId } as any);
+    await CreatorService.submitDraft(creator as any, { applicationId: String((pendingApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/a.mp4" });
+
+    // Completed: must NOT show up on the dashboard's open-tasks list.
+    const completedCampaign = await makePendingCampaign();
+    const completedApp = await CampaignService.assignCreator({ campaignId: String(completedCampaign._id), creatorUserId: creator.userId } as any);
+    await CreatorService.submitDraft(creator as any, { applicationId: String((completedApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/b.mp4" });
+    await CampaignService.reviewDraft(
+      { userId: String(completedCampaign.merchant), role: EnumUserRole.MERCHANT } as any,
+      { applicationId: String((completedApp as any)._id), action: "approve" },
+    );
+
+    await Earning.create({ creator: creator.userId, campaign: activeCampaign._id, application: new mongoose.Types.ObjectId(), amount: 30, status: "paid" });
+    await Payout.create({ creator: creator.userId, amount: 10, status: EnumPayoutStatus.PENDING });
+
+    const dashboard = await CreatorService.getDashboard(creator as any);
+    expect(dashboard.name).toBe("Abdul Karim");
+    expect(dashboard.location).toBe("Maka Al Mukarama, Mogadishu");
+    expect(dashboard.totalEarnings).toBe(30);
+    expect(dashboard.pendingPayout).toBe(10);
+    expect(dashboard.activeTasks).toHaveLength(2);
+    const stages = dashboard.activeTasks.map((t: any) => t.stage).sort();
+    expect(stages).toEqual(["active", "pending"]);
+    const pendingEntry = dashboard.activeTasks.find((t: any) => t.stage === "pending");
+    expect(pendingEntry.statusLabel).toBe("Pending merchant review");
+    const activeEntry = dashboard.activeTasks.find((t: any) => t.stage === "active");
+    expect(activeEntry.statusLabel).toBe("Ready for content");
   });
 
   it("rejects a payout above the available balance", async () => {

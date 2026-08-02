@@ -24,8 +24,8 @@ working on.
 | [0a](#0a) | `POST` | `/category/create` | admin | Seed a creator-type category |
 | [0c](#0c) | `POST` | `/business/create` | merchant | Create a business |
 | [0c](#0c) | `PATCH` | `/business/verify` | admin | Approve the business |
-| [0d](#0d) | `PATCH` | `/creator/profile` | creator | Set creator niche/stats |
-| [0d](#0d) | `POST` | `/creator/link-social` | creator | Link TikTok/Instagram |
+| [0d](#0d) | `PATCH` | `/creator/profile` | creator | Set niche/stats/social accounts — one call |
+| [0e](#0e) | — | — | — | `/user/edit-profile` vs `/creator/profile` — which one? |
 | [1](#step-1) | `POST` | `/campaign/create` | merchant | **Create the campaign** |
 | [2](#step-2) | `GET` | `/creator/admin/list` | admin | Browse creators to assign |
 | [2](#step-2) | `GET` | `/creator/admin/get` | admin | One creator's full profile |
@@ -42,6 +42,7 @@ working on.
 | [ref](#ref-update) | `PATCH` | `/campaign/update` | merchant/admin | Edit a campaign |
 | [ref](#ref-delete) | `DELETE` | `/campaign/delete` | merchant/admin | Delete a campaign |
 | [ref](#ref-apps) | `GET` | `/campaign/applications` | merchant/admin | View assigned creators (read-only) |
+| [ref](#ref-app) | `GET` | `/campaign/application` | merchant/admin | One submission's full detail, by id |
 | [ref](#ref-admin-list) | `GET` | `/campaign/admin/list` | admin | Every campaign, all merchants |
 | [ref](#ref-merchant-view) | `GET` | `/creator/merchant/get` | merchant | "View Profile" — a creator assigned to your own campaign |
 
@@ -109,7 +110,7 @@ have a `businessId` to create campaigns against.
 
 <a id="0d"></a>
 <details>
-<summary><b>Step 0d · PATCH /creator/profile</b> + <b>POST /creator/link-social</b> — creator setup</summary>
+<summary><b>Step 0d · PATCH /creator/profile</b> — creator setup (profile + social, one call)</summary>
 
 Register a `CREATOR`-role account first (`POST /auth/register` →
 `activate-account` → `login`). Then, optionally but recommended so the
@@ -118,30 +119,73 @@ creator shows up properly in the admin picker:
 ```
 PATCH /creator/profile
 Auth: creator
-Body (JSON, all optional)
+Body (JSON) — every field optional
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `bio` | no | free text |
-| `category` | no | a **creator**-type Category id (from 0a) — validated; `400 Invalid creator category` if it doesn't exist or is the wrong type |
-| `followerCount` | no | self-reported number |
-| `engagementRate` | no | self-reported percentage |
+| Field | Notes |
+|---|---|
+| `bio` | free text |
+| `category` | a **creator**-type Category id (from 0a) — validated; `400 Invalid creator category` if it doesn't exist or is the wrong type |
+| `followerCount` | self-reported number |
+| `engagementRate` | self-reported percentage |
+| `socials` | array of `{ platform, handle, url? }` — see below |
+
+`socials[]` entries — `platform` (`tiktok` · `instagram` · `facebook` ·
+`youtube` · `x`, required), `handle` (required), `url` (optional). Each
+entry **upserts by platform**:
+sending `tiktok` again updates that one; an `instagram` entry from a
+previous call that you don't resend is left untouched. So you can either set
+everything at once, or update just one platform later without resending the
+rest of the profile.
+
+Full setup in one call:
+```json
+{
+  "bio": "I run the biggest food review page in Mogadishu.",
+  "category": "<creator-type categoryId>",
+  "followerCount": 50000,
+  "engagementRate": 4.2,
+  "socials": [
+    { "platform": "tiktok", "handle": "@ahmedeats", "url": "https://tiktok.com/@ahmedeats" },
+    { "platform": "instagram", "handle": "@ahmedeats_ig" }
+  ]
+}
+```
+
+Updating just one social later, everything else untouched:
+```json
+{ "socials": [{ "platform": "tiktok", "handle": "@newhandle" }] }
+```
 
 Response (and `GET /creator/profile`) returns `category` **populated**
 (`name`/`slug`/`icon`), not just the raw id.
 
-```
-POST /creator/link-social
-Auth: creator
-Body (JSON): { "platform": "tiktok", "handle": "@ahmedeats", "url": "https://tiktok.com/@ahmedeats" }
-```
+`POST /creator/link-social` still exists — same upsert logic for a single
+platform — but you don't need it anymore; `PATCH /creator/profile` covers
+everything in one endpoint now.
 
-| Field | Required | Notes |
+</details>
+
+<a id="0e"></a>
+<details>
+<summary><b>Which "update profile" API do I use?</b> — <code>/user/edit-profile</code> vs <code>/creator/profile</code></summary>
+
+There are two, because a creator account is really two documents: a base
+`User` (shared by every role) plus a `Creator` doc (creator-only extras).
+Send the right fields to the right endpoint:
+
+| Want to change... | Call | Fields |
 |---|---|---|
-| `platform` | yes | `tiktok` or `instagram` |
-| `handle` | yes | |
-| `url` | no | |
+| Name, phone, address, date of birth, language, profile photo | `PATCH /user/edit-profile` (form-data) | `name`, `phoneNumber`, `address`, `dateOfBirth`, `language`, `profile_image` (file) |
+| Bio, niche, follower count, engagement rate, social accounts | `PATCH /creator/profile` (raw JSON) | `bio`, `category`, `followerCount`, `engagementRate`, `socials[]` — see step 0d above |
+
+Both are optional-fields-only — send just what you're changing, no need to
+resend the whole profile either time.
+
+⚠️ `PATCH /user/edit-profile` currently has no field whitelist server-side —
+technically anything on the `User` schema can be set through it, not just
+the 5 fields above. Stick to those 5; anything else is undocumented,
+unintended behavior, not a supported part of this flow.
 
 </details>
 
@@ -160,7 +204,8 @@ Body: raw JSON (no file upload)
 |---|---|---|
 | `business` | **yes** | your approved business id |
 | `name` | **yes** | |
-| `about` | no | free text |
+| `about` | no | free text — Figma: "Description" |
+| `goal` | no | free text — Figma: "Campaign Goal", a separate field from `about`/Description |
 | `objective` | no | `awareness` · `traffic` · `offer` · `lead_generation` |
 | `contentType` | no | `video_ad` · `product_review` · `reel` · `story` |
 | `influencerCategory` | no | a creator-type Category id (validated) |
@@ -263,8 +308,30 @@ if understaffed. On success: `live` (or `rejected`).
 ```
 GET /creator/tasks
 Auth: creator
-Query (optional): status (approved | draft_submitted | verifying | published | rejected), page, limit
+Query (optional): stage (active | pending | completed | published | rejected), status (approved | draft_submitted | verifying | published | rejected), page, limit
 ```
+
+Use `stage`, not `status`, to match the 4 tabs on the "My Tasks" screen
+(Active / Pending / Completed / Published) — the raw `status` alone doesn't
+map 1:1 onto them: both **Active** (not yet submitted) and **Completed**
+(draft approved, ready to post or already posted awaiting verification)
+share the same raw `status: "approved"`, distinguished only by
+`draftApproved`. `stage` is derived at read time (same pattern as the
+campaign `displayStatus`) so you never need to reason about that yourself:
+
+| `stage` | Raw status(es) it covers | Meaning |
+|---|---|---|
+| `active` | `approved` (with `draftApproved: false`) | Assigned, needs to submit content |
+| `pending` | `draft_submitted` | Content submitted, awaiting merchant review |
+| `completed` | `approved` (with `draftApproved: true`), `verifying` | Draft approved — ready to post live, or already posted and awaiting merchant verification |
+| `published` | `published` | Live and verified |
+| `rejected` | `rejected` | Draft or publication rejected by the merchant — no resubmission path exists today |
+
+If `stage` is omitted, all tasks are returned with a `summary: { active,
+pending, completed, published }` count (rejected isn't in the 4-tab summary,
+but still appears in `result` and is filterable via `?stage=rejected`).
+`status` still works as a raw-status filter if you need it, but prefer
+`stage` for anything UI-facing.
 
 ```
 GET /creator/task
@@ -272,21 +339,26 @@ Auth: creator
 Query: applicationId — required
 ```
 
-Both populate `campaign` (name, about, videoLengthSec, pricePerClaim), and
-`campaign.business` one level deeper (name, logo) — so the business name is
-available without a second call.
+Both populate `campaign` (name, about, **endDate**, videoLengthSec,
+pricePerClaim), `campaign.business` one level deeper (name, logo), and
+`campaign.merchant` one level deeper (name) — so the deadline ("Deadline:
+May 30") and who to contact ("Sent to Hodan Abdi for review") are available
+without extra calls. Both responses also include the derived `stage` field
+described above.
 
 ```
 PATCH /creator/submit-draft
 Auth: creator
-Body (JSON): { "applicationId": "<id>", "draftVideoUrl": "https://...", "caption": "Best Pizza in Mogadishu! 🔥 #SomSpot" }
+Body (JSON): { "applicationId": "<id>", "draftVideoUrl": "https://...", "draftMediaType": "video", "caption": "Best Pizza in Mogadishu! 🔥 #SomSpot", "platform": "tiktok" }
 ```
 
 | Field | Required | Notes |
 |---|---|---|
 | `applicationId` | yes | |
-| `draftVideoUrl` | yes | **not a file upload**, a plain string. Host the video elsewhere and paste the link. |
-| `caption` | no | the social caption shown alongside the video on the merchant's Content tab |
+| `draftVideoUrl` | yes | **not a file upload**, a plain string. Host the file elsewhere (image or video) and paste the link — the field name predates image support, it now holds either. |
+| `draftMediaType` | no | `video` or `image` — backs the Figma "Upload Video" / "Upload Image" choice on Submit Content. Defaults to `video` if omitted. |
+| `caption` | no | the social caption shown alongside the content on the merchant's Content tab |
+| `platform` | no | `tiktok`, `instagram`, `facebook`, `youtube`, or `x` — backs the "TikTok Video" badge on the Content tab card and the "Select platform" step on Social Media Post. Nothing else on the record can tell you this reliably. |
 
 Only works while the task is `approved` and no draft has been approved yet.
 
@@ -379,8 +451,11 @@ Response: `{ meta, summary: {active, inReview}, result }`. Each item in
 
 Auth: merchant (owner only) or admin. Query: `campaignId` (required).
 
-Same computed fields as `/campaign/my`, plus populated `business`, `offer`,
-`invitedCreator`, `influencerCategory`.
+Same computed fields as `/campaign/my`, plus populated `business` (name,
+logo, address, phone, and **`business.category`** populated one level
+deeper — name/slug/icon), `merchant` (name, email, phoneNumber), `offer`,
+`invitedCreator`, `influencerCategory`. This is the admin Campaign Info tab
+— Merchant Information + Category all come from this one call.
 
 </details>
 
@@ -393,7 +468,7 @@ field is optional — only fields present in the body get changed.
 
 **Every updatable field:**
 
-`name` · `about` · `objective` · `contentType` · `influencerCategory` ·
+`name` · `about` · `goal` · `objective` · `contentType` · `influencerCategory` ·
 `startDate` · `endDate` · `contentRequirements` · `invitedCreator` ·
 `videoLengthSec` (also recalculates `pricePerClaim`) · `targetCreators` ·
 `offer` · `status`
@@ -417,18 +492,45 @@ Auth: merchant (owner) or admin. Query: `campaignId` (required).
 
 <a id="ref-apps"></a>
 <details>
-<summary><b>GET /campaign/applications</b> — view assigned creators (read-only)</summary>
+<summary><b>GET /campaign/applications</b> — Influencers tab AND Content tab (same endpoint, one query param apart)</summary>
 
 Auth: merchant (owner) or admin. Query: `campaignId` (required), `page`,
 `limit`.
 
-Each result's `creator` includes `name`, `profile_image`, and `category`
-(populated `name`/`slug`/`icon`) — the "Ahmed Hassan • Food Creator" line.
-`category` is looked up from the separate Creator profile and merged in,
-since `CampaignApplication.creator` refs `User`, not `Creator`.
+| Screen | Call |
+|---|---|
+| **Influencers tab** — every assigned creator | `GET /campaign/applications?campaignId=<id>` |
+| **Content tab** — only creators who've submitted content | `GET /campaign/applications?campaignId=<id>&hasContent=true` |
+
+Both return the exact same item shape — `hasContent=true` just adds a filter
+on top. Each result's `creator` includes `name`, `profile_image`, and
+`category` (populated `name`/`slug`/`icon`) — the "Ahmed Hassan • Food
+Creator" line. `category` is looked up from the separate Creator profile and
+merged in, since `CampaignApplication.creator` refs `User`, not `Creator`.
+
+**Don't filter the Content tab by `status=draft_submitted`** — it looks
+right but silently drops content you've already reviewed. Once you approve
+a draft, `status` reverts to `"approved"` — the exact same value a
+never-submitted creator has — even though `draftVideoUrl`/`caption` are
+still sitting right there on the record. `hasContent=true` checks whether
+`draftVideoUrl` actually exists instead, so already-reviewed content stays
+visible.
 
 Can't be used to change assignments — that's admin-only, via
 `/campaign/admin/assign-creator`.
+
+</details>
+
+<a id="ref-app"></a>
+<details>
+<summary><b>GET /campaign/application</b> — one submission's full detail (Content tab → tap a card)</summary>
+
+Auth: merchant (owner) or admin. Query: `applicationId` (required).
+
+Same shape and enrichment as one item from `/campaign/applications` (creator
+name/photo/category populated), fetched directly by id instead of paging
+through the list — for deep links or refreshing a single detail screen
+without re-fetching everything.
 
 </details>
 
@@ -460,7 +562,9 @@ Auth: admin.
 
 Response: `{ meta, summary, result }`. `summary` = `{total, pendingApproval,
 influencersAssigned, approved, active, rejected, completed}` — counts across
-every matching campaign, for tab badges.
+every matching campaign, for tab badges. Each row's `business` includes
+nested-populated `business.category` (name/slug/icon), and `merchant`
+includes name/email/phoneNumber.
 
 **Derived `status` mapping** — nothing here is stored, computed per request:
 
@@ -483,6 +587,8 @@ every matching campaign, for tab badges.
 | Campaign `status` (raw, stored) | `pending_review` · `live` · `rejected` · `paused` · `completed` |
 | Campaign `objective` | `awareness` · `traffic` · `offer` · `lead_generation` |
 | Campaign `contentType` | `video_ad` · `product_review` · `reel` · `story` |
-| Task (`CampaignApplication`) `status` | `approved` · `draft_submitted` · `verifying` · `published` · `rejected` |
+| Task (`CampaignApplication`) `status` (raw, stored) | `approved` · `draft_submitted` · `verifying` · `published` · `rejected` |
+| Task `stage` (derived, `GET /creator/tasks` and `/creator/task` only) | `active` · `pending` · `completed` · `published` · `rejected` |
 | Category `type` | `merchant` · `creator` |
-| Social `platform` | `tiktok` · `instagram` |
+| Social / content `platform` | `tiktok` · `instagram` · `facebook` · `youtube` · `x` |
+| Content `draftMediaType` | `video` · `image` |

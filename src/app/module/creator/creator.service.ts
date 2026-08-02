@@ -6,6 +6,7 @@ import { isPrivileged } from "../../../util/authz";
 import {
   EnumCampaignStatus,
   EnumCategoryType,
+  EnumContentMediaType,
   EnumPayoutStatus,
   EnumTaskStatus,
 } from "../../../util/enum";
@@ -40,48 +41,64 @@ const assertCreatorCategory = async (categoryId: unknown) => {
   if (!category) throw new ApiError(status.BAD_REQUEST, "Invalid creator category");
 };
 
-const updateProfile = async (
-  userData: AuthUserPayload,
-  payload: { bio?: string; category?: string; followerCount?: number; engagementRate?: number },
-) => {
-  if (payload.category !== undefined) await assertCreatorCategory(payload.category);
-  const profile = await Creator.findOneAndUpdate(
-    { user: userData.userId },
-    {
-      $set: {
-        ...(payload.bio !== undefined && { bio: payload.bio }),
-        ...(payload.category !== undefined && { category: payload.category }),
-        ...(payload.followerCount !== undefined && { followerCount: payload.followerCount }),
-        ...(payload.engagementRate !== undefined && { engagementRate: payload.engagementRate }),
-      },
-    },
-    { new: true, upsert: true },
-  ).populate([{ path: "category", select: "name slug icon" }]);
-  return profile;
+// Upserts one social account into a Creator doc in place (same platform =
+// update, new platform = add). Marked verified in dev (no external API).
+const upsertSocial = (doc: InstanceType<typeof Creator>, social: { platform: string; handle: string; url?: string }) => {
+  const existing = doc.socials.find((s) => s.platform === social.platform);
+  if (existing) {
+    existing.handle = social.handle;
+    existing.url = social.url;
+    existing.verified = true;
+  } else {
+    doc.socials.push({ platform: social.platform, handle: social.handle, url: social.url, verified: true });
+  }
 };
 
-// Link a TikTok/Instagram account. Marked verified in dev (no external API).
+// One call for the whole creator profile: bio/category/stats *and* social
+// accounts together, so setup doesn't need a separate request per social
+// platform. `socials` is optional and additive — each entry upserts by
+// platform, existing platforms not included are left untouched.
+const updateProfile = async (
+  userData: AuthUserPayload,
+  payload: {
+    bio?: string;
+    category?: string;
+    followerCount?: number;
+    engagementRate?: number;
+    socials?: { platform: string; handle: string; url?: string }[];
+  },
+) => {
+  if (payload.category !== undefined) await assertCreatorCategory(payload.category);
+
+  let doc = await Creator.findOne({ user: userData.userId });
+  if (!doc) doc = new Creator({ user: userData.userId });
+
+  if (payload.bio !== undefined) doc.bio = payload.bio;
+  if (payload.category !== undefined) doc.category = payload.category as any;
+  if (payload.followerCount !== undefined) doc.followerCount = payload.followerCount;
+  if (payload.engagementRate !== undefined) doc.engagementRate = payload.engagementRate;
+  for (const social of payload.socials || []) {
+    validateFields(social, ["platform", "handle"]);
+    upsertSocial(doc, social);
+  }
+
+  await doc.save();
+  await doc.populate([{ path: "category", select: "name slug icon" }]);
+  return doc;
+};
+
+// Link (or update) a single TikTok/Instagram account on its own — kept for
+// incremental updates; PATCH /creator/profile with a `socials` array does
+// the same thing alongside the rest of the profile in one call.
 const linkSocial = async (
   userData: AuthUserPayload,
   payload: { platform?: string; handle?: string; url?: string },
 ) => {
   validateFields(payload, ["platform", "handle"]);
-  const profile = await Creator.findOne({ user: userData.userId });
-  const doc = profile || (await Creator.create({ user: userData.userId }));
+  let doc = await Creator.findOne({ user: userData.userId });
+  if (!doc) doc = new Creator({ user: userData.userId });
 
-  const existing = doc.socials.find((s) => s.platform === payload.platform);
-  if (existing) {
-    existing.handle = payload.handle!;
-    existing.url = payload.url;
-    existing.verified = true;
-  } else {
-    doc.socials.push({
-      platform: payload.platform!,
-      handle: payload.handle!,
-      url: payload.url,
-      verified: true,
-    });
-  }
+  upsertSocial(doc, payload as { platform: string; handle: string; url?: string });
   await doc.save();
   return doc;
 };
@@ -90,36 +107,72 @@ const linkSocial = async (
 // Tasks originate from an admin assigning a creator to a live campaign
 // (campaign/admin/assign-creator) — there is no self-service marketplace.
 
-const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
-  const base: Record<string, unknown> = { creator: userData.userId };
-  if (query.status) base.status = query.status;
+const TASK_CAMPAIGN_POPULATE = {
+  path: "campaign",
+  select: "name about endDate videoLengthSec pricePerClaim business merchant",
+  populate: [
+    { path: "business", select: "name logo" },
+    { path: "merchant", select: "name" },
+  ],
+};
 
-  const { meta, result } = await new QueryBuilder(
-    CampaignApplication.find(base)
-      .populate([{
-        path: "campaign",
-        select: "name videoLengthSec pricePerClaim business",
-        populate: { path: "business", select: "name logo" },
-      }])
-      .lean(),
-    query,
-  ).execute([]);
-  return { meta, result };
+// The 4 Figma tabs (Active/Pending/Completed/Published) don't map 1:1 onto
+// the raw `status` enum — both "Active" (not yet submitted) and "Completed"
+// (draft approved, ready to post or already posted awaiting verification)
+// share status "approved", distinguished only by `draftApproved`. This is
+// the same class of bug already fixed on the merchant Content tab (raw
+// status alone silently conflates two different UI states).
+const deriveTaskStage = (application: { status: string; draftApproved: boolean }) => {
+  if (application.status === EnumTaskStatus.PUBLISHED) return "published";
+  if (application.status === EnumTaskStatus.REJECTED) return "rejected";
+  if (application.status === EnumTaskStatus.DRAFT_SUBMITTED) return "pending";
+  if (application.status === EnumTaskStatus.VERIFYING) return "completed";
+  if (application.status === EnumTaskStatus.APPROVED)
+    return application.draftApproved ? "completed" : "active";
+  return application.status;
+};
+
+const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
+  const tasks = await CampaignApplication.find({ creator: userData.userId })
+    .populate([TASK_CAMPAIGN_POPULATE])
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const withStage = tasks.map((t: any) => ({ ...t, stage: deriveTaskStage(t) }));
+
+  const summary = {
+    active: withStage.filter((t) => t.stage === "active").length,
+    pending: withStage.filter((t) => t.stage === "pending").length,
+    completed: withStage.filter((t) => t.stage === "completed").length,
+    published: withStage.filter((t) => t.stage === "published").length,
+  };
+
+  const filtered = query.stage
+    ? withStage.filter((t) => t.stage === query.stage)
+    : query.status
+      ? withStage.filter((t) => t.status === query.status)
+      : withStage;
+
+  const page = Number(query.page) || 1;
+  const limit = Number(query.limit) || 10;
+  const result = filtered.slice((page - 1) * limit, (page - 1) * limit + limit);
+
+  return {
+    meta: { page, limit, total: filtered.length, totalPage: Math.ceil(filtered.length / limit) || 1 },
+    summary,
+    result,
+  };
 };
 
 const getTask = async (userData: AuthUserPayload, query: { applicationId?: string }) => {
   validateFields(query, ["applicationId"]);
   const task = await CampaignApplication.findById(query.applicationId)
-    .populate([{
-      path: "campaign",
-      select: "name about videoLengthSec pricePerClaim business",
-      populate: { path: "business", select: "name logo" },
-    }])
+    .populate([TASK_CAMPAIGN_POPULATE])
     .lean();
   if (!task) throw new ApiError(status.NOT_FOUND, "Task not found");
   if (String(task.creator) !== userData.userId)
     throw new ApiError(status.FORBIDDEN, "Not your task");
-  return task;
+  return { ...task, stage: deriveTaskStage(task as any) };
 };
 
 const findOwnApplication = async (userData: AuthUserPayload, applicationId: string) => {
@@ -130,10 +183,18 @@ const findOwnApplication = async (userData: AuthUserPayload, applicationId: stri
   return application;
 };
 
-// Creator uploads the draft video for merchant approval.
+// Creator uploads the draft video for merchant approval. `platform` records
+// which network this content is for (Figma: the "TikTok Video" badge on the
+// Content tab) — nothing else on the record can tell you that reliably.
 const submitDraft = async (
   userData: AuthUserPayload,
-  payload: { applicationId?: string; draftVideoUrl?: string; caption?: string },
+  payload: {
+    applicationId?: string;
+    draftVideoUrl?: string;
+    draftMediaType?: string;
+    caption?: string;
+    platform?: string;
+  },
 ) => {
   validateFields(payload, ["applicationId", "draftVideoUrl"]);
   const application = await findOwnApplication(userData, payload.applicationId!);
@@ -141,7 +202,9 @@ const submitDraft = async (
     throw new ApiError(status.BAD_REQUEST, "You cannot submit a draft at this stage");
 
   application.draftVideoUrl = payload.draftVideoUrl;
+  application.draftMediaType = payload.draftMediaType || EnumContentMediaType.VIDEO;
   if (payload.caption !== undefined) application.caption = payload.caption;
+  if (payload.platform !== undefined) application.platform = payload.platform;
   application.status = EnumTaskStatus.DRAFT_SUBMITTED;
   application.submittedAt = new Date();
   await application.save();

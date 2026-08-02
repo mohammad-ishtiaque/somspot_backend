@@ -1,5 +1,5 @@
 import { Schema, model, Types } from "mongoose";
-import { EnumTaskStatus } from "../../../util/enum";
+import { EnumTaskStatus, EnumSocialPlatform, EnumContentMediaType } from "../../../util/enum";
 
 // A creator's participation in a campaign — created already-approved by an
 // admin (campaign/admin/assign-creator), then carries the task lifecycle:
@@ -10,7 +10,9 @@ export interface ICampaignApplication {
   creator: Types.ObjectId; // User
   status: string;
   pitch?: string; // "Tell the merchant why your audience would love this offer"
+  platform?: string; // EnumSocialPlatform — which platform this content is for (Figma: "TikTok Video" badge)
   draftVideoUrl?: string;
+  draftMediaType?: string; // EnumContentMediaType — Figma "Upload Video" vs "Upload Image"; field name predates images
   caption?: string; // social caption the creator posts alongside the video
   postUrl?: string; // live TikTok/IG URL
   merchantNote?: string;
@@ -34,7 +36,9 @@ const applicationSchema = new Schema<ICampaignApplication>(
       default: EnumTaskStatus.APPROVED,
     },
     pitch: { type: String },
+    platform: { type: String, enum: Object.values(EnumSocialPlatform) },
     draftVideoUrl: { type: String },
+    draftMediaType: { type: String, enum: Object.values(EnumContentMediaType) },
     caption: { type: String },
     postUrl: { type: String },
     merchantNote: { type: String },

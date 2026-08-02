@@ -134,9 +134,23 @@ const EnumSupportStatus = {
   REPLIED: "replied",
 };
 
+// Figma "Select platform" (Social Media Post screen) shows 5 options —
+// covers both a creator's linked accounts and which platform a submission
+// is/was published to.
 const EnumSocialPlatform = {
   TIKTOK: "tiktok",
   INSTAGRAM: "instagram",
+  FACEBOOK: "facebook",
+  YOUTUBE: "youtube",
+  X: "x",
+};
+
+// Figma "Submit Content" offers "Upload Video" or "Upload Image" — what kind
+// of file draftVideoUrl actually points at (the field name predates this;
+// it holds either).
+const EnumContentMediaType = {
+  VIDEO: "video",
+  IMAGE: "image",
 };
 
 // What a Category document is for — the same admin-managed Category
@@ -165,6 +179,7 @@ export {
   EnumSubscriptionStatus,
   EnumPayoutStatus,
   EnumSocialPlatform,
+  EnumContentMediaType,
   EnumSupportStatus,
   EnumLanguage,
   EnumCategoryType,

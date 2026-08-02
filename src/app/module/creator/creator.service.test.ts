@@ -71,6 +71,35 @@ describe("CreatorService", () => {
     expect(profile.engagementRate).toBe(4.2);
   });
 
+  it("updates profile fields and social accounts together in one call", async () => {
+    const food = await makeCreatorCategory("Food");
+    const profile = await CreatorService.updateProfile(creator as any, {
+      bio: "I run the biggest food review page in Mogadishu.",
+      category: String(food._id),
+      followerCount: 50000,
+      socials: [
+        { platform: "tiktok", handle: "@ahmedeats", url: "https://tiktok.com/@ahmedeats" },
+        { platform: "instagram", handle: "@ahmedeats_ig" },
+      ],
+    });
+
+    expect(profile.bio).toBe("I run the biggest food review page in Mogadishu.");
+    expect((profile.category as any).name).toBe("Food");
+    expect(profile.socials).toHaveLength(2);
+    expect(profile.socials.find((s) => s.platform === "tiktok")?.handle).toBe("@ahmedeats");
+    expect(profile.socials.find((s) => s.platform === "instagram")?.verified).toBe(true);
+
+    // A second call updates one platform without disturbing the other or
+    // the rest of the profile — same one-endpoint flow, not a full replace.
+    const updated = await CreatorService.updateProfile(creator as any, {
+      socials: [{ platform: "tiktok", handle: "@ahmedeats_new" }],
+    });
+    expect(updated.socials).toHaveLength(2);
+    expect(updated.socials.find((s) => s.platform === "tiktok")?.handle).toBe("@ahmedeats_new");
+    expect(updated.socials.find((s) => s.platform === "instagram")?.handle).toBe("@ahmedeats_ig");
+    expect(updated.bio).toBe("I run the biggest food review page in Mogadishu.");
+  });
+
   it("rejects a category that doesn't exist or isn't a creator category", async () => {
     const merchantOnly = await Category.create({ name: "Pharmacy", slug: "pharmacy", type: EnumCategoryType.MERCHANT });
     await expect(
@@ -149,7 +178,7 @@ describe("CreatorService", () => {
     expect((fetched as any).category.name).toBe("Food");
   });
 
-  it("accepts an optional caption on submit-draft and submit-post", async () => {
+  it("accepts an optional caption and platform on submit-draft and submit-post", async () => {
     const authId = new mongoose.Types.ObjectId();
     await Auth.create({ _id: authId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
     await User.create({ _id: creator.userId, authId, name: "Creator", email: "creator@somspot.so" });
@@ -160,8 +189,10 @@ describe("CreatorService", () => {
       applicationId: String((app as any)._id),
       draftVideoUrl: "https://cdn.somspot.so/draft.mp4",
       caption: "Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot",
+      platform: "tiktok",
     });
     expect(drafted.caption).toBe("Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot");
+    expect(drafted.platform).toBe("tiktok");
 
     await CampaignService.reviewDraft(
       { userId: String(c.merchant), role: EnumUserRole.MERCHANT } as any,
@@ -195,6 +226,59 @@ describe("CreatorService", () => {
 
     const task = await CreatorService.getTask(creator as any, { applicationId: String((app as any)._id) });
     expect((task as any).campaign.business.name).toBe("Somali Tech Store");
+  });
+
+  it("derives a task's stage from status+draftApproved, distinguishing Active from Completed on the same raw status", async () => {
+    const authId = new mongoose.Types.ObjectId();
+    await Auth.create({ _id: authId, name: "Creator", email: "creator@somspot.so", password: "Passw0rd!", role: EnumUserRole.CREATOR });
+    await User.create({ _id: creator.userId, authId, name: "Creator", email: "creator@somspot.so" });
+    // Active: assigned, never submitted. Raw status "approved", draftApproved false.
+    const activeCampaign = await makePendingCampaign();
+    const activeApp = await CampaignService.assignCreator({ campaignId: String(activeCampaign._id), creatorUserId: creator.userId } as any);
+
+    // Pending: draft submitted, awaiting merchant review.
+    const pendingCampaign = await makePendingCampaign();
+    const pendingApp = await CampaignService.assignCreator({ campaignId: String(pendingCampaign._id), creatorUserId: creator.userId } as any);
+    await CreatorService.submitDraft(creator as any, { applicationId: String((pendingApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/a.mp4" });
+
+    // Completed: draft approved by merchant, same raw status "approved" as Active — must NOT be classified as Active.
+    const completedCampaign = await makePendingCampaign();
+    const completedApp = await CampaignService.assignCreator({ campaignId: String(completedCampaign._id), creatorUserId: creator.userId } as any);
+    await CreatorService.submitDraft(creator as any, { applicationId: String((completedApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/b.mp4" });
+    await CampaignService.reviewDraft(
+      { userId: String(completedCampaign.merchant), role: EnumUserRole.MERCHANT } as any,
+      { applicationId: String((completedApp as any)._id), action: "approve" },
+    );
+
+    // Published: full lifecycle through verification.
+    const publishedCampaign = await makePendingCampaign();
+    const publishedApp = await CampaignService.assignCreator({ campaignId: String(publishedCampaign._id), creatorUserId: creator.userId } as any);
+    await CreatorService.submitDraft(creator as any, { applicationId: String((publishedApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/c.mp4" });
+    await CampaignService.reviewDraft(
+      { userId: String(publishedCampaign.merchant), role: EnumUserRole.MERCHANT } as any,
+      { applicationId: String((publishedApp as any)._id), action: "approve" },
+    );
+    await CreatorService.submitPostUrl(creator as any, { applicationId: String((publishedApp as any)._id), postUrl: "https://tiktok.com/@ahmed/video/2" });
+    await CampaignService.verifyPublication(
+      { userId: String(publishedCampaign.merchant), role: EnumUserRole.MERCHANT } as any,
+      { applicationId: String((publishedApp as any)._id), action: "approve" },
+    );
+
+    const { result, summary } = await CreatorService.getMyTasks(creator as any, {});
+    expect(summary).toEqual({ active: 1, pending: 1, completed: 1, published: 1 });
+
+    const byId = new Map(result.map((r: any) => [String(r._id), r.stage]));
+    expect(byId.get(String((activeApp as any)._id))).toBe("active");
+    expect(byId.get(String((pendingApp as any)._id))).toBe("pending");
+    expect(byId.get(String((completedApp as any)._id))).toBe("completed");
+    expect(byId.get(String((publishedApp as any)._id))).toBe("published");
+
+    const { result: activeOnly } = await CreatorService.getMyTasks(creator as any, { stage: "active" });
+    expect(activeOnly).toHaveLength(1);
+    expect((activeOnly[0] as any).stage).toBe("active");
+
+    const task = await CreatorService.getTask(creator as any, { applicationId: String((completedApp as any)._id) });
+    expect((task as any).stage).toBe("completed");
   });
 
   it("lets a merchant view the profile of a creator assigned to their campaign, but not an unrelated one", async () => {

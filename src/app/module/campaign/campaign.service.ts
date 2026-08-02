@@ -353,23 +353,22 @@ const deleteCampaign = async (userData: AuthUserPayload, payload: { campaignId?:
 };
 
 // Merchant views the creators admin assigned to their campaign (read-only —
-// assignment itself can't be changed from the merchant app). Also serves the
-// Content tab via ?hasContent=true (see below).
+// assignment itself can't be changed from the merchant app).
 const getApplications = async (userData: AuthUserPayload, query: QueryParams) => {
   validateFields(query, ["campaignId"]);
   await assertOwnsCampaign(userData, String(query.campaignId));
 
-  // `campaignId` and `hasContent` aren't real CampaignApplication fields —
-  // QueryBuilder's generic filter would otherwise re-apply them verbatim
-  // and match nothing. Keep them out of what's passed to QueryBuilder.
+  // `campaignId` and `hasContent` aren't real CampaignApplication fields
+  // (the field is `campaign`, and "has content" isn't stored at all — it's
+  // derived from draftVideoUrl below). QueryBuilder's generic filter would
+  // otherwise re-apply either verbatim and match nothing. Keep both out of
+  // what's passed to QueryBuilder.
   const { campaignId, hasContent, ...listQuery } = query;
 
   const base: Record<string, unknown> = { campaign: campaignId };
-  // Content tab: creators who have submitted a draft at some point, no
-  // matter the current status. `status` alone can't express this — once a
-  // merchant approves a draft, status reverts to "approved", identical to a
-  // creator who hasn't submitted anything yet, even though draftVideoUrl is
-  // still sitting right there on the record.
+  // The Content tab: status alone can't tell "never submitted" apart from
+  // "submitted and already reviewed" (both revert to "approved"), so this
+  // filters on the actual presence of a draft instead of status.
   if (hasContent === "true") base.draftVideoUrl = { $exists: true, $ne: null };
 
   const { meta, result } = await new QueryBuilder(

@@ -33,7 +33,7 @@ working on.
 | [4](#step-4) | `PATCH` | `/campaign/admin/review` | admin | **Approve / reject the campaign** |
 | [5](#step-5) | `GET` | `/creator/tasks` | creator | List my assigned tasks |
 | [5](#step-5) | `GET` | `/creator/task` | creator | One task |
-| [5](#step-5) | `PATCH` | `/creator/submit-draft` | creator | Submit draft video |
+| [5](#step-5) | `PATCH` | `/creator/submit-draft` | creator | Submit draft video / thumbnail file (form-data) |
 | [5](#step-5) | `PATCH` | `/creator/submit-post` | creator | Submit live post URL |
 | [6](#step-6) | `PATCH` | `/campaign/review-draft` | merchant | Approve/reject the draft |
 | [7](#step-7) | `PATCH` | `/campaign/verify-publication` | merchant/admin | Verify live post → pay creator |
@@ -352,16 +352,20 @@ described above.
 ```
 PATCH /creator/submit-draft
 Auth: creator
-Body (JSON): { "applicationId": "<id>", "draftVideoUrl": "https://...", "draftMediaType": "video", "caption": "Best Pizza in Mogadishu! 🔥 #SomSpot", "platform": "tiktok" }
+Body: form-data (multipart/form-data)
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `applicationId` | yes | |
-| `draftVideoUrl` | yes | **not a file upload**, a plain string. Host the file elsewhere (image or video) and paste the link — the field name predates image support, it now holds either. |
-| `draftMediaType` | no | `video` or `image` — backs the Figma "Upload Video" / "Upload Image" choice on Submit Content. Defaults to `video` if omitted. |
-| `caption` | no | the social caption shown alongside the content on the merchant's Content tab |
-| `platform` | no | `tiktok`, `instagram`, `facebook`, `youtube`, or `x` — backs the "TikTok Video" badge on the Content tab card and the "Select platform" step on Social Media Post. Nothing else on the record can tell you this reliably. |
+| Field | Type | Required | Notes / Allowed Values |
+|---|---|---|---|
+| `applicationId` | Text | **yes** | The task's `CampaignApplication` ObjectId |
+| `draftVideo` | File Upload | **no** | Video file upload (`.mp4`, `.mov`, `.webm`, `.3gp`, `.avi`, `.mkv`) — max 100MB |
+| `draftVideoUrl` | Text | **no** | Direct video URL string (if not uploading a file) |
+| `thumbnail` | File Upload or Text | **no** | Image file upload (`.jpg`, `.png`, `.webp`) **OR** image URL string |
+| `draftMediaType` | Text | **no** | `video` (default) or `image` — backs Figma "Upload Video" / "Upload Image" choice |
+| `caption` | Text | **no** | Social caption shown alongside the draft content |
+| `platform` | Text | **no** | `tiktok` · `instagram` · `facebook` · `youtube` · `x` |
+
+> ℹ️ **Validation Rule**: At least one of `draftVideo`, `draftVideoUrl`, or `thumbnail` must be provided. If `draftVideo` or `thumbnail` file is attached via `form-data`, its saved path (e.g. `uploads/draftVideo/...` or `uploads/thumbnail/...`) is automatically set.
 
 Only works while the task is `approved` and no draft has been approved yet.
 

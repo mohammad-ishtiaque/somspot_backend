@@ -194,17 +194,22 @@ const submitDraft = async (
   payload: {
     applicationId?: string;
     draftVideoUrl?: string;
+    thumbnail?: string;
     draftMediaType?: string;
     caption?: string;
     platform?: string;
   },
 ) => {
-  validateFields(payload, ["applicationId", "draftVideoUrl"]);
+  validateFields(payload, ["applicationId"]);
+  if (!payload.draftVideoUrl && !payload.thumbnail)
+    throw new ApiError(status.BAD_REQUEST, "Either draft video or thumbnail must be provided");
+
   const application = await findOwnApplication(userData, payload.applicationId!);
   if (application.status !== EnumTaskStatus.APPROVED || application.draftApproved)
     throw new ApiError(status.BAD_REQUEST, "You cannot submit a draft at this stage");
 
-  application.draftVideoUrl = payload.draftVideoUrl;
+  if (payload.draftVideoUrl !== undefined) application.draftVideoUrl = payload.draftVideoUrl;
+  if (payload.thumbnail !== undefined) application.thumbnail = payload.thumbnail;
   application.draftMediaType = payload.draftMediaType || EnumContentMediaType.VIDEO;
   if (payload.caption !== undefined) application.caption = payload.caption;
   if (payload.platform !== undefined) application.platform = payload.platform;

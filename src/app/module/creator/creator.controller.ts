@@ -32,8 +32,17 @@ const getTask = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Task retrieved", data: result });
 });
 
+const buildSubmitDraftPayload = (req: Request): Record<string, unknown> => {
+  const body: Record<string, any> = { ...req.body };
+  const files = (req.files || {}) as Record<string, Express.Multer.File[]>;
+  if (files.draftVideo?.[0]) body.draftVideoUrl = files.draftVideo[0].path;
+  if (files.draftVideoUrl?.[0]) body.draftVideoUrl = files.draftVideoUrl[0].path;
+  if (files.thumbnail?.[0]) body.thumbnail = files.thumbnail[0].path;
+  return body;
+};
+
 const submitDraft = catchAsync(async (req: Request, res: Response) => {
-  const result = await CreatorService.submitDraft(getAuthUser(req), req.body);
+  const result = await CreatorService.submitDraft(getAuthUser(req), buildSubmitDraftPayload(req));
   sendResponse(res, { statusCode: 200, success: true, message: "Draft submitted", data: result });
 });
 

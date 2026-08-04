@@ -7,6 +7,14 @@ import path from "path";
 // mime types it allows and how many files — so images and PDFs both work
 // through a single middleware. Add a field here to make it uploadable anywhere.
 const IMAGE = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
+const VIDEO = [
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/3gpp",
+  "video/x-msvideo",
+  "video/x-matroska",
+];
 
 interface FieldRule {
   maxCount: number;
@@ -22,6 +30,10 @@ const FIELD_RULES: Record<string, FieldRule> = {
   offerImage: { maxCount: 1, mimeTypes: IMAGE },
   // category
   icon: { maxCount: 1, mimeTypes: IMAGE },
+  // campaign / creator drafts
+  thumbnail: { maxCount: 1, mimeTypes: IMAGE },
+  draftVideo: { maxCount: 1, mimeTypes: VIDEO },
+  draftVideoUrl: { maxCount: 1, mimeTypes: VIDEO },
 };
 
 const createDirIfNotExists = (uploadPath: string): void => {
@@ -60,7 +72,7 @@ const uploadFile = () => {
   return multer({
     storage,
     fileFilter,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file (PDFs can be larger)
+    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB per file (videos can be large)
   }).fields(
     Object.entries(FIELD_RULES).map(([name, r]) => ({ name, maxCount: r.maxCount })),
   );

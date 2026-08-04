@@ -1,6 +1,7 @@
 import { Router } from "express";
 import auth from "../../middleware/auth";
 import config from "../../../config";
+import { uploadFile } from "../../middleware/fileUploader";
 import { CreatorController } from "./creator.controller";
 
 const router = Router();
@@ -15,7 +16,7 @@ router
   // tasks — assigned by an admin (campaign/admin/assign-creator), not self-applied
   .get("/tasks", auth(config.auth_level.creator), CreatorController.getMyTasks)
   .get("/task", auth(config.auth_level.creator), CreatorController.getTask)
-  .patch("/submit-draft", auth(config.auth_level.creator), CreatorController.submitDraft)
+  .patch("/submit-draft", auth(config.auth_level.creator), uploadFile(), CreatorController.submitDraft)
   .patch("/submit-post", auth(config.auth_level.creator), CreatorController.submitPostUrl)
   // home
   .get("/dashboard", auth(config.auth_level.creator), CreatorController.getDashboard)

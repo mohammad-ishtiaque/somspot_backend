@@ -12,6 +12,7 @@ export interface ICampaignApplication {
   pitch?: string; // "Tell the merchant why your audience would love this offer"
   platform?: string; // EnumSocialPlatform — which platform this content is for (Figma: "TikTok Video" badge)
   draftVideoUrl?: string;
+  thumbnail?: string;
   draftMediaType?: string; // EnumContentMediaType — Figma "Upload Video" vs "Upload Image"; field name predates images
   caption?: string; // social caption the creator posts alongside the video
   postUrl?: string; // live TikTok/IG URL
@@ -38,6 +39,7 @@ const applicationSchema = new Schema<ICampaignApplication>(
     pitch: { type: String },
     platform: { type: String, enum: Object.values(EnumSocialPlatform) },
     draftVideoUrl: { type: String },
+    thumbnail: { type: String },
     draftMediaType: { type: String, enum: Object.values(EnumContentMediaType) },
     caption: { type: String },
     postUrl: { type: String },

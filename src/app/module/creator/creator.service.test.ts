@@ -284,9 +284,11 @@ describe("CreatorService", () => {
     const drafted = await CreatorService.submitDraft(creator as any, {
       applicationId: String((app as any)._id),
       draftVideoUrl: "https://cdn.somspot.so/draft.mp4",
+      thumbnail: "uploads/thumbnail/thumb.jpg",
       caption: "Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot",
       platform: "tiktok",
     });
+    expect(drafted.thumbnail).toBe("uploads/thumbnail/thumb.jpg");
     expect(drafted.caption).toBe("Best Pizza in Mogadishu! Buy 1 Get 1 Free today #SomSpot");
     expect(drafted.platform).toBe("tiktok");
 

@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import mongoose from "mongoose";
 import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler";
 import { BusinessService } from "./business.service";
+import Category from "../category/Category";
 import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 
 beforeAll(connectTestDb);

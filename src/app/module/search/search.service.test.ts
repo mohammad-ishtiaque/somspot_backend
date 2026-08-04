@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler";
 import { SearchService } from "./search.service";
 import Business from "../business/Business";
+import Category from "../category/Category";
 import { EnumBusinessStatus } from "../../../util/enum";
 
 beforeAll(connectTestDb);

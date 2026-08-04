@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler";
 import { PaymentService } from "./payment.service";
 import Payment from "./Payment";
+import User from "../user/User";
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);

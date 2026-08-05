@@ -103,6 +103,7 @@ const EnumCampaignContentType = {
 const EnumTaskStatus = {
   APPROVED: "approved",
   DRAFT_SUBMITTED: "draft_submitted",
+  DRAFT_APPROVED: "draft_approved",
   VERIFYING: "verifying",
   PUBLISHED: "published",
   REJECTED: "rejected",

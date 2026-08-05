@@ -111,7 +111,7 @@ const buildCampaignStats = (
   const totalBudget = campaign.targetCreators * campaign.pricePerClaim;
   const spentBudget = assignedCount * campaign.pricePerClaim;
   const submittedContentCount = applications.filter((a) =>
-    [EnumTaskStatus.DRAFT_SUBMITTED, EnumTaskStatus.VERIFYING, EnumTaskStatus.PUBLISHED].includes(a.status),
+    [EnumTaskStatus.DRAFT_SUBMITTED, EnumTaskStatus.DRAFT_APPROVED, EnumTaskStatus.VERIFYING, EnumTaskStatus.PUBLISHED].includes(a.status),
   ).length;
   const publishedCount = applications.filter((a) => a.status === EnumTaskStatus.PUBLISHED).length;
   const daysLeft = campaign.endDate
@@ -369,7 +369,13 @@ const getApplications = async (userData: AuthUserPayload, query: QueryParams) =>
   // The Content tab: status alone can't tell "never submitted" apart from
   // "submitted and already reviewed" (both revert to "approved"), so this
   // filters on the actual presence of a draft instead of status.
-  if (hasContent === "true") base.draftVideoUrl = { $exists: true, $ne: null };
+  if (hasContent === "true") {
+    base.$or = [
+      { draftVideo: { $exists: true, $ne: null } },
+      { draftVideoUrl: { $exists: true, $ne: null } },
+      { thumbnail: { $exists: true, $ne: null } },
+    ];
+  }
 
   const { meta, result } = await new QueryBuilder(
     CampaignApplication.find(base)
@@ -442,9 +448,10 @@ const reviewDraft = async (
   if (payload.action === "approve") {
     application.draftApproved = true;
     application.merchantNote = payload.merchantNote;
-    application.status = EnumTaskStatus.APPROVED; // ready for the creator to post
+    application.status = EnumTaskStatus.DRAFT_APPROVED; // ready for the creator to post
   } else if (payload.action === "reject") {
-    application.status = EnumTaskStatus.REJECTED;
+    application.status = EnumTaskStatus.APPROVED; // Reset to approved so creator can resubmit
+    application.draftApproved = false;
     application.merchantNote = payload.merchantNote;
   } else {
     throw new ApiError(status.BAD_REQUEST, "action must be approve or reject");

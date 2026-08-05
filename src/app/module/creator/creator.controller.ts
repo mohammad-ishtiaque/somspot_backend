@@ -35,8 +35,8 @@ const getTask = catchAsync(async (req: Request, res: Response) => {
 const buildSubmitDraftPayload = (req: Request): Record<string, unknown> => {
   const body: Record<string, any> = { ...req.body };
   const files = (req.files || {}) as Record<string, Express.Multer.File[]>;
-  if (files.draftVideo?.[0]) body.draftVideoUrl = files.draftVideo[0].path;
-  if (files.draftVideoUrl?.[0]) body.draftVideoUrl = files.draftVideoUrl[0].path;
+  if (files.draftVideo?.[0]) body.draftVideo = files.draftVideo[0].path;
+  // if (files.draftVideoUrl?.[0]) body.draftVideoUrl = files.draftVideoUrl[0].path;
   if (files.thumbnail?.[0]) body.thumbnail = files.thumbnail[0].path;
   return body;
 };

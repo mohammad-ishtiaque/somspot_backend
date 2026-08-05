@@ -129,9 +129,9 @@ const deriveTaskStage = (application: { status: string; draftApproved: boolean }
   if (application.status === EnumTaskStatus.PUBLISHED) return "published";
   if (application.status === EnumTaskStatus.REJECTED) return "rejected";
   if (application.status === EnumTaskStatus.DRAFT_SUBMITTED) return "pending";
+  if (application.status === EnumTaskStatus.DRAFT_APPROVED) return "live";
   if (application.status === EnumTaskStatus.VERIFYING) return "completed";
-  if (application.status === EnumTaskStatus.APPROVED)
-    return application.draftApproved ? "completed" : "active";
+  if (application.status === EnumTaskStatus.APPROVED) return "active";
   return application.status;
 };
 
@@ -146,6 +146,7 @@ const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
   const summary = {
     active: withStage.filter((t) => t.stage === "active").length,
     pending: withStage.filter((t) => t.stage === "pending").length,
+    live: withStage.filter((t) => t.stage === "live").length,
     completed: withStage.filter((t) => t.stage === "completed").length,
     published: withStage.filter((t) => t.stage === "published").length,
   };
@@ -193,6 +194,7 @@ const submitDraft = async (
   userData: AuthUserPayload,
   payload: {
     applicationId?: string;
+    draftVideo?: string;
     draftVideoUrl?: string;
     thumbnail?: string;
     draftMediaType?: string;
@@ -201,13 +203,14 @@ const submitDraft = async (
   },
 ) => {
   validateFields(payload, ["applicationId"]);
-  if (!payload.draftVideoUrl && !payload.thumbnail)
-    throw new ApiError(status.BAD_REQUEST, "Either draft video or thumbnail must be provided");
+  if (!payload.draftVideo && !payload.draftVideoUrl && !payload.thumbnail)
+    throw new ApiError(status.BAD_REQUEST, "Either draft video (file or URL) or thumbnail must be provided");
 
   const application = await findOwnApplication(userData, payload.applicationId!);
-  if (application.status !== EnumTaskStatus.APPROVED || application.draftApproved)
+  if (application.status !== EnumTaskStatus.APPROVED)
     throw new ApiError(status.BAD_REQUEST, "You cannot submit a draft at this stage");
 
+  if (payload.draftVideo !== undefined) application.draftVideo = payload.draftVideo;
   if (payload.draftVideoUrl !== undefined) application.draftVideoUrl = payload.draftVideoUrl;
   if (payload.thumbnail !== undefined) application.thumbnail = payload.thumbnail;
   application.draftMediaType = payload.draftMediaType || EnumContentMediaType.VIDEO;
@@ -227,7 +230,7 @@ const submitPostUrl = async (
 ) => {
   validateFields(payload, ["applicationId", "postUrl"]);
   const application = await findOwnApplication(userData, payload.applicationId!);
-  if (!application.draftApproved)
+  if (application.status !== EnumTaskStatus.DRAFT_APPROVED)
     throw new ApiError(status.BAD_REQUEST, "Your draft has not been approved yet");
 
   application.postUrl = payload.postUrl;
@@ -368,7 +371,7 @@ const getDashboard = async (userData: AuthUserPayload) => {
     getCreatorClaimsCount(userData.userId),
     CampaignApplication.find({
       creator: userData.userId,
-      status: { $in: [EnumTaskStatus.APPROVED, EnumTaskStatus.DRAFT_SUBMITTED] },
+      status: { $in: [EnumTaskStatus.APPROVED, EnumTaskStatus.DRAFT_SUBMITTED, EnumTaskStatus.DRAFT_APPROVED] },
     })
       .populate([TASK_CAMPAIGN_POPULATE])
       .sort({ createdAt: -1 })
@@ -379,14 +382,14 @@ const getDashboard = async (userData: AuthUserPayload) => {
   // status alone can't tell them apart, same derivation as GET /creator/tasks.
   const activeTasks = openTasksRaw
     .map((t: any) => ({ ...t, stage: deriveTaskStage(t) }))
-    .filter((t: any) => t.stage === "active" || t.stage === "pending")
+    .filter((t: any) => t.stage === "active" || t.stage === "pending" || t.stage === "live")
     .slice(0, 5)
     .map((t: any) => ({
       _id: t._id,
       businessName: t.campaign?.business?.name || null,
       campaignName: t.campaign?.name || null,
       stage: t.stage,
-      statusLabel: t.stage === "pending" ? "Pending merchant review" : "Ready for content",
+      statusLabel: t.stage === "pending" ? "Pending merchant review" : t.stage === "live" ? "Ready to post on social" : "Ready for content",
       // The platform a not-yet-submitted task will target isn't captured
       // anywhere today (it's only set once the creator submits a draft) —
       // null here for "active" tasks is honest, not a bug.

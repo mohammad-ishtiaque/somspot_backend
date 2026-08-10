@@ -9,3 +9,17 @@ process.env.JWT_EXPIRES_IN ??= "15m";
 process.env.JWT_REFRESH_EXPIRES_IN ??= "7d";
 process.env.MONGO_URL ??= "mongodb://127.0.0.1:27017/test-placeholder";
 process.env.BCRYPT_SALT_ROUNDS ??= "4";
+
+// Pre-register all models to avoid MissingSchemaError during population in tests
+import "../app/module/category/Category";
+import "../app/module/business/Business";
+import "../app/module/user/User";
+import "../app/module/auth/Auth";
+import "../app/module/offer/Offer";
+import "../app/module/claim/Claim";
+import "../app/module/creator/Creator";
+import "../app/module/campaign/Campaign";
+import "../app/module/creator/CampaignApplication";
+import "../app/module/review/Review";
+import "../app/module/saved/Saved";
+import "../app/module/notification/Notification";

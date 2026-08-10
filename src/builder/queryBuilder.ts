@@ -73,10 +73,15 @@ class QueryBuilder<T> {
   }
 
   sort(): this {
-    // Convert comma-separated sort string to space-separated (Mongoose format)
-    // Default to newest first if no sort is provided
-    const sort = (this.query?.sort || "").split(",").join(" ") || "-createdAt";
+    const filter = (this.modelQuery.getFilter() || {}) as Record<string, any>;
+    const hasNear = filter.location?.$near || Object.values(filter).some((v: any) => v && typeof v === "object" && "$near" in v);
 
+    if (hasNear && !this.query?.sort) {
+      // $near already sorts by distance; do not append default -createdAt sort
+      return this;
+    }
+
+    const sort = (this.query?.sort || "").split(",").join(" ") || "-createdAt";
     this.modelQuery = this.modelQuery.sort(sort);
 
     return this;
@@ -93,8 +98,6 @@ class QueryBuilder<T> {
   }
 
   fields(): this {
-    // Convert comma-separated field list to space-separated (Mongoose format)
-    // Default to excluding __v if no fields are specified
     const fields = (this.query?.fields || "").split(",").join(" ") || "-__v";
 
     this.modelQuery = this.modelQuery.select(fields) as unknown as Query<
@@ -105,9 +108,6 @@ class QueryBuilder<T> {
     return this;
   }
 
-  // Runs the full list pipeline (search → filter → sort → paginate → fields)
-  // and returns the paginated result + meta in one call. Generalizes the
-  // boilerplate that every list endpoint used to repeat.
   async execute(
     searchableFields: string[] = [],
   ): Promise<{ meta: PaginationMeta; result: T[] }> {
@@ -120,9 +120,13 @@ class QueryBuilder<T> {
   }
 
   async countTotal(): Promise<PaginationMeta> {
-    const totalQueries = this.modelQuery.getFilter();
+    const totalQueries: Record<string, any> = { ...this.modelQuery.getFilter() };
 
-    // Access the underlying Mongoose model to run a count query
+    // Remove $near for countDocuments compatibility in MongoDB
+    if (totalQueries.location?.$near) {
+      delete totalQueries.location;
+    }
+
     const total = await (this.modelQuery.model as Model<T>).countDocuments(
       totalQueries,
     );

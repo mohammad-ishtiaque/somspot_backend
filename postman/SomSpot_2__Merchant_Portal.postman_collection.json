@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "SomSpot API",
+    "name": "SomSpot API - 2. Merchant Portal",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "SomSpot (taatiko12) backend — consumer, merchant & creator APIs. Set {{baseUrl}} and the role tokens after logging in.\n\nLocalization: send header `x-language: en|so|ar` on any request to get localized success/error messages. The user's language is also stored at signup (register / phone request-otp `language` field) and used for outgoing emails."
+    "description": "APIs for Merchant Dashboard (Business Setup, Offers, Campaigns, Claim Redemption & Subscriptions)"
   },
   "variable": [
     {

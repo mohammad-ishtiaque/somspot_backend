@@ -7,6 +7,7 @@ import { CreatorController } from "./creator.controller";
 const router = Router();
 
 router.get("/content", CreatorController.getBusinessContent);
+router.get("/trending", CreatorController.getTrendingCreators);
 
 router
   // profile

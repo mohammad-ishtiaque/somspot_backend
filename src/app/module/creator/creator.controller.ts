@@ -102,10 +102,16 @@ const getAssignedCreatorProfile = catchAsync(async (req: Request, res: Response)
   sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
 });
 
+const getTrendingCreators = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.getTrendingCreators(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Trending creators retrieved", data: result });
+});
+
 const CreatorController = {
   getMyProfile,
   updateProfile,
   getBusinessContent,
+  getTrendingCreators,
   linkSocial,
   getMyTasks,
   getTask,

@@ -570,31 +570,45 @@ const getAssignedCreatorProfile = async (userData: AuthUserPayload, query: { use
 };
 
 // Public: published creator content for a business (consumer "Creator" tab on
-// the business-detail screen — "see what local creators are saying").
+// the business-detail screen) OR all businesses (consumer home screen feed).
 const getBusinessContent = async (query: { businessId?: string }) => {
-  validateFields(query, ["businessId"]);
-  const campaigns = await Campaign.find({ business: query.businessId }).select("_id").lean();
-  const campaignIds = campaigns.map((c) => c._id);
+  const filter: Record<string, unknown> = { status: EnumTaskStatus.PUBLISHED };
+  if (query.businessId) {
+    const campaigns = await Campaign.find({ business: query.businessId }).select("_id").lean();
+    filter.campaign = { $in: campaigns.map((c) => c._id) };
+  }
 
-  const content = await CampaignApplication.find({
-    campaign: { $in: campaignIds },
-    status: EnumTaskStatus.PUBLISHED,
-  })
+  const content = await CampaignApplication.find(filter)
     .populate([
       { path: "creator", select: "name profile_image" },
-      { path: "campaign", select: "name" },
+      { path: "campaign", select: "name business", populate: { path: "business", select: "name logo" } },
     ])
-    .select("postUrl creator campaign publishedAt")
+    .select("postUrl creator campaign publishedAt thumbnail caption platform draftVideoUrl")
     .sort({ publishedAt: -1 })
     .lean();
 
   return content;
 };
 
+// Public: trending creators/influencers for the consumer home page.
+const getTrendingCreators = async (query: QueryParams) => {
+  const limit = Number(query.limit) || 10;
+  const creators = await Creator.find()
+    .sort({ followerCount: -1, engagementRate: -1 })
+    .limit(limit)
+    .populate([
+      { path: "user", select: "name profile_image" },
+      { path: "category", select: "name slug icon" },
+    ])
+    .lean();
+  return creators;
+};
+
 const CreatorService = {
   getMyProfile,
   updateProfile,
   getBusinessContent,
+  getTrendingCreators,
   linkSocial,
   getMyTasks,
   getTask,

@@ -7,6 +7,7 @@ import { EnumOfferStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Offer from "./Offer";
 import Business from "../business/Business";
+import Claim from "../claim/Claim";
 
 // Derived status, evaluated fresh on every read (never persisted): a manually
 // paused offer stays INACTIVE; otherwise a future startAt makes it SCHEDULED,
@@ -106,13 +107,36 @@ const getAllOffers = async (query: QueryParams) => {
   return { meta, result: result.map(withDerivedStatus) };
 };
 
-const getOffer = async (query: { offerId?: string }) => {
+const getOffer = async (query: { offerId?: string }, userData?: AuthUserPayload) => {
   validateFields(query, ["offerId"]);
   const offer = await Offer.findById(query.offerId)
     .populate([{ path: "business", select: "name logo address phone category ratingAvg" }])
     .lean();
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
-  return withDerivedStatus(offer);
+  const derived = withDerivedStatus(offer);
+
+  let isClaimed = false;
+  let claimCode: string | null = null;
+  let claimStatus: string | null = null;
+  let claimId: string | null = null;
+
+  if (userData?.userId) {
+    const claim = await Claim.findOne({ user: userData.userId, offer: query.offerId }).lean();
+    if (claim) {
+      isClaimed = true;
+      claimCode = claim.code;
+      claimStatus = claim.status;
+      claimId = String(claim._id);
+    }
+  }
+
+  return {
+    ...derived,
+    isClaimed,
+    claimCode,
+    claimStatus,
+    claimId,
+  };
 };
 
 // Merchant "Offers" screen — active/scheduled/expired tabs with counts, all

@@ -51,6 +51,18 @@ function enhanceCustomerRequests() {
             description: "Default address/location text",
           },
           {
+            key: "lat",
+            value: "2.046934",
+            type: "text",
+            description: "Latitude coordinate",
+          },
+          {
+            key: "lng",
+            value: "45.318161",
+            type: "text",
+            description: "Longitude coordinate",
+          },
+          {
             key: "language",
             value: "en",
             type: "text",
@@ -79,6 +91,10 @@ function enhanceCustomerRequests() {
                 phoneNumber: "+252612345678",
                 language: "en",
                 address: "Maka Al Mukarama, Mogadishu",
+                locationCoordinates: {
+                  type: "Point",
+                  coordinates: [45.318161, 2.046934],
+                },
               },
             },
             null,
@@ -196,6 +212,106 @@ function enhanceCustomerRequests() {
           ],
         },
       );
+    }
+  }
+
+  // Offer folder enhancements (Single offer details with claim status & end date)
+  const offerFolder = getFolder("Offer");
+  if (offerFolder && offerFolder.item) {
+    const hasGetSingle = offerFolder.item.some((r) => r.name.includes("Single offer details"));
+    if (!hasGetSingle) {
+      offerFolder.item.push({
+        name: "Single offer details (consumer)",
+        request: {
+          method: "GET",
+          header: [{ key: "Authorization", value: "Bearer {{userToken}}", description: "Optional token to check if user claimed this offer" }],
+          url: {
+            raw: "{{baseUrl}}/offer/get?offerId={{offerId}}",
+            host: ["{{baseUrl}}"],
+            path: ["offer", "get"],
+            query: [{ key: "offerId", value: "{{offerId}}" }],
+          },
+          description: "Returns offer details including endAt, isClaimed status, claimCode, and claimId if claimed by the user.",
+        },
+        response: [
+          {
+            name: "200 OK - Offer Details (Claimed)",
+            status: "OK",
+            code: 200,
+            _postman_previewlanguage: "json",
+            body: JSON.stringify(
+              {
+                statusCode: 200,
+                success: true,
+                message: "Offer retrieved",
+                data: {
+                  _id: "6a7965d5f792519d4eada809",
+                  business: {
+                    _id: "6a7965d5f792519d4eada806",
+                    name: "Hilib Macaan Restaurant",
+                    logo: "https://cdn.somspot.so/businesses/hilib_logo.png",
+                    address: "Maka Al Mukarama Road, Mogadishu",
+                    phone: "+252612345678",
+                    ratingAvg: 4.8,
+                  },
+                  title: "20% Off Family Platter",
+                  description: "Get 20% discount on our signature family platter featuring roasted goat, rice, and fresh salad.",
+                  discountLabel: "20% OFF",
+                  offerImage: "https://cdn.somspot.so/offers/family_platter.jpg",
+                  terms: "Valid for dine-in only. Cannot be combined with other offers.",
+                  startAt: "2026-08-01T00:00:00.000Z",
+                  endAt: "2026-08-12T05:47:01.442Z",
+                  status: "active",
+                  isClaimed: true,
+                  claimCode: "SOM-84291",
+                  claimStatus: "claimed",
+                  claimId: "6a7965d5f792519d4eada808",
+                },
+              },
+              null,
+              2,
+            ),
+          },
+          {
+            name: "200 OK - Offer Details (Not Claimed)",
+            status: "OK",
+            code: 200,
+            _postman_previewlanguage: "json",
+            body: JSON.stringify(
+              {
+                statusCode: 200,
+                success: true,
+                message: "Offer retrieved",
+                data: {
+                  _id: "6a7965d5f792519d4eada809",
+                  business: {
+                    _id: "6a7965d5f792519d4eada806",
+                    name: "Hilib Macaan Restaurant",
+                    logo: "https://cdn.somspot.so/businesses/hilib_logo.png",
+                    address: "Maka Al Mukarama Road, Mogadishu",
+                    phone: "+252612345678",
+                    ratingAvg: 4.8,
+                  },
+                  title: "20% Off Family Platter",
+                  description: "Get 20% discount on our signature family platter featuring roasted goat, rice, and fresh salad.",
+                  discountLabel: "20% OFF",
+                  offerImage: "https://cdn.somspot.so/offers/family_platter.jpg",
+                  terms: "Valid for dine-in only. Cannot be combined with other offers.",
+                  startAt: "2026-08-01T00:00:00.000Z",
+                  endAt: "2026-08-12T05:47:01.442Z",
+                  status: "active",
+                  isClaimed: false,
+                  claimCode: null,
+                  claimStatus: null,
+                  claimId: null,
+                },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      });
     }
   }
 

@@ -25,7 +25,7 @@ const getAllOffers = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getOffer = catchAsync(async (req: Request, res: Response) => {
-  const result = await OfferService.getOffer(req.query);
+  const result = await OfferService.getOffer(req.query, req.user);
   sendResponse(res, { statusCode: 200, success: true, message: "Offer retrieved", data: result });
 });
 

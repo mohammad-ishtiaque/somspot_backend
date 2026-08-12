@@ -13,6 +13,6 @@ router
   .delete("/delete", auth(config.auth_level.merchant), OfferController.deleteOffer)
   .get("/admin/list", auth(config.auth_level.admin), OfferController.adminGetAll)
   .get("/get-all", OfferController.getAllOffers)
-  .get("/get", OfferController.getOffer);
+  .get("/get", auth([], false), OfferController.getOffer);
 
 export = router;

@@ -24,8 +24,24 @@ const getAllOffers = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Offers retrieved", data: result });
 });
 
+import config from "../../../config";
+import { jwtHelpers } from "../../../util/jwtHelpers";
+import { AuthUserPayload } from "../../../types/auth.types";
+
 const getOffer = catchAsync(async (req: Request, res: Response) => {
-  const result = await OfferService.getOffer(req.query, req.user);
+  let user = req.user;
+  if (!user && req.headers.authorization?.startsWith("Bearer ")) {
+    try {
+      const token = req.headers.authorization.split(" ")[1]?.trim();
+      if (token) {
+        user = jwtHelpers.verifyToken<AuthUserPayload>(token, config.jwt.secret);
+      }
+    } catch {
+      /* ignore invalid token in optional route */
+    }
+  }
+
+  const result = await OfferService.getOffer(req.query, user);
   sendResponse(res, { statusCode: 200, success: true, message: "Offer retrieved", data: result });
 });
 

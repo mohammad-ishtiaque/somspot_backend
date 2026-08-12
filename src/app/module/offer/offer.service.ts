@@ -107,9 +107,16 @@ const getAllOffers = async (query: QueryParams) => {
   return { meta, result: result.map(withDerivedStatus) };
 };
 
-const getOffer = async (query: { offerId?: string }, userData?: AuthUserPayload) => {
-  validateFields(query, ["offerId"]);
-  const offer = await Offer.findById(query.offerId)
+const getOffer = async (
+  query: { offerId?: string; id?: string; _id?: string },
+  userData?: AuthUserPayload,
+) => {
+  const targetOfferId = query.offerId || query.id || query._id;
+  if (!targetOfferId) {
+    throw new ApiError(status.BAD_REQUEST, "offerId is required");
+  }
+
+  const offer = await Offer.findById(targetOfferId)
     .populate([{ path: "business", select: "name logo address phone category ratingAvg" }])
     .lean();
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
@@ -120,8 +127,21 @@ const getOffer = async (query: { offerId?: string }, userData?: AuthUserPayload)
   let claimStatus: string | null = null;
   let claimId: string | null = null;
 
-  if (userData?.userId) {
-    const claim = await Claim.findOne({ user: userData.userId, offer: query.offerId }).lean();
+  const targetUserId = userData?.userId;
+  const targetAuthId = userData?.authId;
+
+  if (targetUserId || targetAuthId) {
+    const userQueryConditions: any[] = [];
+    if (targetUserId) userQueryConditions.push({ user: targetUserId });
+    if (targetAuthId) userQueryConditions.push({ user: targetAuthId });
+
+    const claim = await Claim.findOne({
+      $or: userQueryConditions,
+      offer: offer._id,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
     if (claim) {
       isClaimed = true;
       claimCode = claim.code;

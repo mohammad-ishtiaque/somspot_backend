@@ -68,4 +68,27 @@ describe("OfferService", () => {
 
     expect(result).toHaveLength(3);
   });
+
+  it("returns isClaimed true and claimCode when offer is claimed by the user", async () => {
+    const b = await makeBusiness();
+    const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Claimable", endAt: future });
+
+    const user = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.USER };
+
+    // Before claim
+    const unclaimed = await OfferService.getOffer({ offerId: String(offer._id) }, user as any);
+    expect(unclaimed.isClaimed).toBe(false);
+    expect(unclaimed.claimCode).toBeNull();
+
+    // Claim offer
+    const { ClaimService } = await import("../claim/claim.service");
+    const claim = await ClaimService.claimOffer(user as any, { offerId: String(offer._id) });
+
+    // After claim
+    const claimed = await OfferService.getOffer({ offerId: String(offer._id) }, user as any);
+    expect(claimed.isClaimed).toBe(true);
+    expect(claimed.claimCode).toBe(claim.code);
+    expect(claimed.claimStatus).toBe("claimed");
+    expect(claimed.claimId).toBe(String(claim._id));
+  });
 });

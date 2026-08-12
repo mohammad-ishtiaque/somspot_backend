@@ -218,6 +218,73 @@ function enhanceCustomerRequests() {
   // Offer folder enhancements (Single offer details with claim status & end date)
   const offerFolder = getFolder("Offer");
   if (offerFolder && offerFolder.item) {
+    const hasGetAll = offerFolder.item.some((r) => r.name.includes("Get top deals list"));
+    if (!hasGetAll) {
+      offerFolder.item.push({
+        name: "Get top deals list (consumer)",
+        request: {
+          method: "GET",
+          header: [{ key: "Authorization", value: "Bearer {{userToken}}", description: "Optional token to check if user claimed each offer" }],
+          url: {
+            raw: "{{baseUrl}}/offer/get-all?page=1&limit=10",
+            host: ["{{baseUrl}}"],
+            path: ["offer", "get-all"],
+            query: [
+              { key: "page", value: "1" },
+              { key: "limit", value: "10" },
+              { key: "business", value: "{{businessId}}", disabled: true },
+              { key: "category", value: "{{categoryId}}", disabled: true },
+            ],
+          },
+          description: "Fetches active top deals. Enriches each item with isClaimed, claimCode, claimStatus, claimId if user is authenticated.",
+        },
+        response: [
+          {
+            name: "200 OK - Offers List",
+            status: "OK",
+            code: 200,
+            _postman_previewlanguage: "json",
+            body: JSON.stringify(
+              {
+                statusCode: 200,
+                success: true,
+                message: "Offers retrieved",
+                data: {
+                  meta: { page: 1, limit: 10, total: 1, totalPage: 1 },
+                  result: [
+                    {
+                      _id: "6a7965d5f792519d4eada809",
+                      business: {
+                        _id: "6a7965d5f792519d4eada806",
+                        name: "Hilib Macaan Restaurant",
+                        logo: "https://cdn.somspot.so/businesses/hilib_logo.png",
+                        address: "Maka Al Mukarama Road, Mogadishu",
+                        ratingAvg: 4.8,
+                      },
+                      title: "20% Off Family Platter",
+                      description: "Get 20% discount on our special family platter.",
+                      discountLabel: "20% OFF",
+                      offerImage: "https://cdn.somspot.so/offers/family_platter.jpg",
+                      terms: "Valid for dine-in only.",
+                      startAt: "2026-08-01T00:00:00.000Z",
+                      endAt: "2026-08-12T05:47:01.442Z",
+                      status: "active",
+                      isClaimed: true,
+                      claimCode: "SOM-84291",
+                      claimStatus: "claimed",
+                      claimId: "6a7965d5f792519d4eada808",
+                    },
+                  ],
+                },
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      });
+    }
+
     const hasGetSingle = offerFolder.item.some((r) => r.name.includes("Single offer details"));
     if (!hasGetSingle) {
       offerFolder.item.push({

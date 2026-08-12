@@ -84,7 +84,7 @@ const createOffer = async (userData: AuthUserPayload, payload: Record<string, an
 
 // Consumer-facing: live offers only — excludes both not-yet-started
 // (scheduled) and expired offers. Filter by business or category.
-const getAllOffers = async (query: QueryParams) => {
+const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
   const now = new Date();
   const base: Record<string, unknown> = {
     status: EnumOfferStatus.ACTIVE,
@@ -104,7 +104,51 @@ const getAllOffers = async (query: QueryParams) => {
     Offer.find(base).populate([{ path: "business", select: "name logo category address ratingAvg" }]).lean(),
     query,
   ).execute(["title"]);
-  return { meta, result: result.map(withDerivedStatus) };
+
+  const derivedResult = result.map(withDerivedStatus);
+
+  const targetUserId = userData?.userId;
+  const targetAuthId = userData?.authId;
+
+  if ((targetUserId || targetAuthId) && derivedResult.length > 0) {
+    const offerIds = derivedResult.map((o: any) => o._id);
+    const userQueryConditions: any[] = [];
+    if (targetUserId) userQueryConditions.push({ user: targetUserId });
+    if (targetAuthId) userQueryConditions.push({ user: targetAuthId });
+
+    const userClaims = await Claim.find({
+      $or: userQueryConditions,
+      offer: { $in: offerIds },
+    }).lean();
+
+    const claimMap = new Map<string, any>();
+    userClaims.forEach((c) => {
+      claimMap.set(String(c.offer), c);
+    });
+
+    const enrichedResult = derivedResult.map((o: any) => {
+      const claim = claimMap.get(String(o._id));
+      return {
+        ...o,
+        isClaimed: Boolean(claim),
+        claimCode: claim ? claim.code : null,
+        claimStatus: claim ? claim.status : null,
+        claimId: claim ? String(claim._id) : null,
+      };
+    });
+
+    return { meta, result: enrichedResult };
+  }
+
+  const publicResult = derivedResult.map((o: any) => ({
+    ...o,
+    isClaimed: false,
+    claimCode: null,
+    claimStatus: null,
+    claimId: null,
+  }));
+
+  return { meta, result: publicResult };
 };
 
 const getOffer = async (

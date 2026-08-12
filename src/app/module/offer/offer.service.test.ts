@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import mongoose from "mongoose";
 import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler";
 import { OfferService } from "./offer.service";
+import { ClaimService } from "../claim/claim.service";
 import Business from "../business/Business";
 import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 
@@ -81,7 +82,6 @@ describe("OfferService", () => {
     expect(unclaimed.claimCode).toBeNull();
 
     // Claim offer
-    const { ClaimService } = await import("../claim/claim.service");
     const claim = await ClaimService.claimOffer(user as any, { offerId: String(offer._id) });
 
     // After claim
@@ -90,5 +90,10 @@ describe("OfferService", () => {
     expect(claimed.claimCode).toBe(claim.code);
     expect(claimed.claimStatus).toBe("claimed");
     expect(claimed.claimId).toBe(String(claim._id));
+
+    // getAllOffers for user
+    const { result: allOffers } = await OfferService.getAllOffers({}, user as any);
+    expect(allOffers[0].isClaimed).toBe(true);
+    expect(allOffers[0].claimCode).toBe(claim.code);
   });
 });

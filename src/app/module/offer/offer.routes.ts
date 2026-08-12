@@ -12,7 +12,7 @@ router
   .patch("/update", auth(config.auth_level.merchant), uploadFile(), OfferController.updateOffer)
   .delete("/delete", auth(config.auth_level.merchant), OfferController.deleteOffer)
   .get("/admin/list", auth(config.auth_level.admin), OfferController.adminGetAll)
-  .get("/get-all", OfferController.getAllOffers)
+  .get("/get-all", auth([], false), OfferController.getAllOffers)
   .get("/get", auth([], false), OfferController.getOffer);
 
 export = router;

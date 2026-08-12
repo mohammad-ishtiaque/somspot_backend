@@ -33,13 +33,13 @@ const updateProfile = async (req: Request) => {
   }
 
   // Parse location coordinates from lat/lng, latitude/longitude or locationCoordinates
-  const lat = data.lat ?? data.latitude;
-  const lng = data.lng ?? data.longitude;
+  const inputLat = data.lat ?? data.latitude;
+  const inputLng = data.lng ?? data.longitude;
 
-  if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+  if (inputLat != null && inputLng != null && !isNaN(Number(inputLat)) && !isNaN(Number(inputLng))) {
     updateData.locationCoordinates = {
       type: "Point",
-      coordinates: [Number(lng), Number(lat)],
+      coordinates: [Number(inputLng), Number(inputLat)],
     };
   } else if (typeof data.locationCoordinates === "string") {
     try {
@@ -77,7 +77,15 @@ const updateProfile = async (req: Request) => {
     unlinkFile(existingUser.profile_image);
   }
 
-  return user;
+  const userCoords = (user as any)?.locationCoordinates?.coordinates;
+  const userLng = Array.isArray(userCoords) && userCoords[0] != null ? Number(userCoords[0]) : null;
+  const userLat = Array.isArray(userCoords) && userCoords[1] != null ? Number(userCoords[1]) : null;
+
+  return {
+    ...(user.toObject ? user.toObject() : user),
+    lat: userLat,
+    lng: userLng,
+  };
 };
 
 const getProfile = async (userData: AuthUserPayload) => {
@@ -96,7 +104,15 @@ const getProfile = async (userData: AuthUserPayload) => {
     throw new ApiError(status.FORBIDDEN, "You are blocked. Contact support");
   }
 
-  return result;
+  const profCoords = (result as any)?.locationCoordinates?.coordinates;
+  const profLng = Array.isArray(profCoords) && profCoords[0] != null ? Number(profCoords[0]) : null;
+  const profLat = Array.isArray(profCoords) && profCoords[1] != null ? Number(profCoords[1]) : null;
+
+  return {
+    ...result,
+    lat: profLat,
+    lng: profLng,
+  };
 };
 
 export const deleteMyAccount = async (payload: {

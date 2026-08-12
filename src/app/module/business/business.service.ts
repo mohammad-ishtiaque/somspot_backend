@@ -7,6 +7,7 @@ import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
 import BusinessView from "./BusinessView";
+import User from "../user/User";
 const tzlookup = require("tz-lookup");
 
 // Resolve an IANA timezone dynamically: an explicit value wins; otherwise
@@ -108,21 +109,57 @@ const createBusiness = async (userData: AuthUserPayload, payload: Record<string,
   return business;
 };
 
+const calculateDistanceKm = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number => {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return Math.round(distance * 100) / 100;
+};
+
+const formatDistanceLabel = (distanceKm: number): string => {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m`;
+  }
+  return `${distanceKm} km`;
+};
+
 // Public discovery: approved businesses only. Supports search, category filter,
-// and geo "nearby" when lat/lng provided.
-const getAllBusinesses = async (query: QueryParams) => {
+// and geo "nearby" when lat/lng provided or user profile location available.
+const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) => {
   const base: Record<string, unknown> = { status: EnumBusinessStatus.APPROVED };
 
   if (query.category) base.category = query.category;
 
-  const lat = query.lat ?? query.latitude;
-  const lng = query.lng ?? query.longitude;
+  let cLat = query.lat ?? query.latitude ? Number(query.lat ?? query.latitude) : NaN;
+  let cLng = query.lng ?? query.longitude ? Number(query.lng ?? query.longitude) : NaN;
 
-  if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+  if ((isNaN(cLat) || isNaN(cLng)) && userData?.userId) {
+    const userDoc = await User.findById(userData.userId).select("locationCoordinates").lean();
+    const coords = (userDoc as any)?.locationCoordinates?.coordinates;
+    if (Array.isArray(coords) && coords.length === 2) {
+      cLng = Number(coords[0]);
+      cLat = Number(coords[1]);
+    }
+  }
+
+  if (!isNaN(cLat) && !isNaN(cLng)) {
     const maxKm = Number(query.radiusKm || query.radius) || 10;
     base.location = {
       $near: {
-        $geometry: { type: "Point", coordinates: [Number(lng), Number(lat)] },
+        $geometry: { type: "Point", coordinates: [cLng, cLat] },
         $maxDistance: maxKm * 1000,
       },
     };
@@ -132,7 +169,30 @@ const getAllBusinesses = async (query: QueryParams) => {
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
     query,
   ).execute(["name", "description", "address"]);
-  return { meta, result: result.map(withOpen) };
+
+  const enrichedResult = result.map((b: any) => {
+    const withOpenDoc = withOpen(b);
+    const bCoords = b?.location?.coordinates;
+    let distanceKm: number | null = null;
+    let distanceLabel: string | null = null;
+
+    if (!isNaN(cLat) && !isNaN(cLng) && Array.isArray(bCoords) && bCoords.length === 2) {
+      const bLng = Number(bCoords[0]);
+      const bLat = Number(bCoords[1]);
+      if (!isNaN(bLat) && !isNaN(bLng)) {
+        distanceKm = calculateDistanceKm(cLat, cLng, bLat, bLng);
+        distanceLabel = formatDistanceLabel(distanceKm);
+      }
+    }
+
+    return {
+      ...withOpenDoc,
+      distanceKm,
+      distanceLabel,
+    };
+  });
+
+  return { meta, result: enrichedResult };
 };
 
 // Trending = approved, ranked by rating then review count.
@@ -148,7 +208,7 @@ const getTrending = async (query: QueryParams) => {
 
 const getBusiness = async (
   userData: AuthUserPayload | undefined,
-  query: { businessId?: string },
+  query: { businessId?: string; lat?: string; lng?: string; latitude?: string; longitude?: string },
   viewerIp?: string,
 ) => {
   validateFields(query, ["businessId"]);
@@ -171,7 +231,38 @@ const getBusiness = async (
     BusinessView.create({ business: business._id, viewer: userData?.userId, ip: viewerIp }).catch(() => {});
   }
 
-  return withOpen(business);
+  let cLat = query.lat ?? query.latitude ? Number(query.lat ?? query.latitude) : NaN;
+  let cLng = query.lng ?? query.longitude ? Number(query.lng ?? query.longitude) : NaN;
+
+  if ((isNaN(cLat) || isNaN(cLng)) && userData?.userId) {
+    const userDoc = await User.findById(userData.userId).select("locationCoordinates").lean();
+    const coords = (userDoc as any)?.locationCoordinates?.coordinates;
+    if (Array.isArray(coords) && coords.length === 2) {
+      cLng = Number(coords[0]);
+      cLat = Number(coords[1]);
+    }
+  }
+
+  const enriched = withOpen(business);
+  const bCoords = (business as any)?.location?.coordinates;
+
+  let distanceKm: number | null = null;
+  let distanceLabel: string | null = null;
+
+  if (!isNaN(cLat) && !isNaN(cLng) && Array.isArray(bCoords) && bCoords.length === 2) {
+    const bLng = Number(bCoords[0]);
+    const bLat = Number(bCoords[1]);
+    if (!isNaN(bLat) && !isNaN(bLng)) {
+      distanceKm = calculateDistanceKm(cLat, cLng, bLat, bLng);
+      distanceLabel = formatDistanceLabel(distanceKm);
+    }
+  }
+
+  return {
+    ...enriched,
+    distanceKm,
+    distanceLabel,
+  };
 };
 
 const getMyBusinesses = async (userData: AuthUserPayload, query: QueryParams) => {

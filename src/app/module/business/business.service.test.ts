@@ -42,4 +42,22 @@ describe("BusinessService", () => {
     const stranger = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.USER };
     await expect(BusinessService.getBusiness(stranger as any, { businessId: String(b._id) })).rejects.toThrow();
   });
+
+  it("calculates dynamic distance (distanceKm & distanceLabel) when coordinates provided", async () => {
+    const b = await BusinessService.createBusiness(merchant as any, {
+      name: "Downtown Cafe",
+      category: categoryId,
+      lat: 2.046934,
+      lng: 45.318161,
+    });
+    await BusinessService.verifyBusiness({ businessId: String(b._id), action: "approve" });
+
+    // Customer at ~1.4 km distance
+    const detail = await BusinessService.getBusiness(
+      undefined,
+      { businessId: String(b._id), lat: "2.055000", lng: "45.325000" },
+    );
+    expect(detail.distanceKm).toBeGreaterThan(0);
+    expect(detail.distanceLabel).toMatch(/km|m/);
+  });
 });

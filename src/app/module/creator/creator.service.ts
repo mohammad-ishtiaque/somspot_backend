@@ -590,18 +590,22 @@ const getBusinessContent = async (query: { businessId?: string }) => {
   return content;
 };
 
-// Public: trending creators/influencers for the consumer home page.
+// Public: trending creators/influencers for the consumer home page. Supports page/limit pagination & meta.
 const getTrendingCreators = async (query: QueryParams) => {
-  const limit = Number(query.limit) || 10;
-  const creators = await Creator.find()
-    .sort({ followerCount: -1, engagementRate: -1 })
-    .limit(limit)
-    .populate([
-      { path: "user", select: "name profile_image" },
-      { path: "category", select: "name slug icon" },
-    ])
-    .lean();
-  return creators;
+  const queryCopy = { ...query };
+  if (!queryCopy.sort) queryCopy.sort = "-followerCount,-engagementRate";
+
+  const { meta, result } = await new QueryBuilder(
+    Creator.find()
+      .populate([
+        { path: "user", select: "name profile_image" },
+        { path: "category", select: "name slug icon" },
+      ])
+      .lean(),
+    queryCopy,
+  ).execute([]);
+
+  return { meta, result };
 };
 
 const CreatorService = {

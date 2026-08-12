@@ -1,6 +1,6 @@
 const { status } = require("http-status");
 import ApiError from "../../../error/ApiError";
-import { QueryParams } from "../../../builder/queryBuilder";
+import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import { EnumBusinessStatus } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
@@ -9,24 +9,32 @@ import Business from "../business/Business";
 
 // Run a business search and record the term in the user's recent history.
 const search = async (userData: AuthUserPayload, query: QueryParams) => {
-  validateFields(query, ["term"]);
-  const term = String(query.term).trim();
+  const searchTerm = String(query.term || query.searchTerm || query.q || "").trim();
+  if (!searchTerm) {
+    throw new ApiError(status.BAD_REQUEST, "Search term is required (term, searchTerm, or q)");
+  }
 
   // De-duplicate: keep the most recent occurrence of a term at the top.
-  await SearchHistory.deleteMany({ user: userData.userId, term });
-  await SearchHistory.create({ user: userData.userId, term });
+  if (userData?.userId) {
+    await SearchHistory.deleteMany({ user: userData.userId, term: searchTerm });
+    await SearchHistory.create({ user: userData.userId, term: searchTerm });
+  }
 
-  const limit = Number(query.limit) || 20;
-  const result = await Business.find({
+  const searchableFields = ["name", "description", "address"];
+
+  const searchFilter = {
     status: EnumBusinessStatus.APPROVED,
-    name: { $regex: term, $options: "i" },
-  })
-    .collation({ locale: "en", strength: 2 })
-    .limit(limit)
-    .populate([{ path: "category", select: "name slug icon" }])
-    .lean();
+    $or: searchableFields.map((field) => ({
+      [field]: { $regex: searchTerm, $options: "i" },
+    })),
+  };
 
-  return { term, result };
+  const { meta, result } = await new QueryBuilder(
+    Business.find(searchFilter).populate([{ path: "category", select: "name slug icon" }]).lean(),
+    query,
+  ).execute([]);
+
+  return { term: searchTerm, meta, result };
 };
 
 const getRecent = async (userData: AuthUserPayload) => {

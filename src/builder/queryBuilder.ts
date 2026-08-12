@@ -55,7 +55,21 @@ class QueryBuilder<T> {
     const queryObj: Record<string, unknown> = { ...this.query };
 
     // Remove fields that are not actual database filters
-    const excludeFields = ["searchTerm", "sort", "limit", "page", "fields"];
+    const excludeFields = [
+      "searchTerm",
+      "term",
+      "q",
+      "sort",
+      "limit",
+      "page",
+      "fields",
+      "lat",
+      "lng",
+      "latitude",
+      "longitude",
+      "radiusKm",
+      "radius",
+    ];
     excludeFields.forEach((el) => delete queryObj[el]);
 
     // Reject object/array values so a query string like ?role[$ne]=USER

@@ -32,6 +32,28 @@ const updateProfile = async (req: Request) => {
     hasNewImage = true;
   }
 
+  // Parse location coordinates from lat/lng, latitude/longitude or locationCoordinates
+  const lat = data.lat ?? data.latitude;
+  const lng = data.lng ?? data.longitude;
+
+  if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+    updateData.locationCoordinates = {
+      type: "Point",
+      coordinates: [Number(lng), Number(lat)],
+    };
+  } else if (typeof data.locationCoordinates === "string") {
+    try {
+      const parsed = JSON.parse(data.locationCoordinates);
+      if (Array.isArray(parsed) && parsed.length === 2) {
+        updateData.locationCoordinates = { type: "Point", coordinates: parsed.map(Number) };
+      } else if (parsed && Array.isArray(parsed.coordinates)) {
+        updateData.locationCoordinates = { type: "Point", coordinates: parsed.coordinates.map(Number) };
+      }
+    } catch {
+      /* ignore invalid json string */
+    }
+  }
+
   const [auth, user] = await Promise.all([
     Auth.findByIdAndUpdate(
       authId,

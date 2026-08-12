@@ -115,11 +115,14 @@ const getAllBusinesses = async (query: QueryParams) => {
 
   if (query.category) base.category = query.category;
 
-  if (query.lat && query.lng) {
-    const maxKm = Number(query.radiusKm) || 10;
+  const lat = query.lat ?? query.latitude;
+  const lng = query.lng ?? query.longitude;
+
+  if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng))) {
+    const maxKm = Number(query.radiusKm || query.radius) || 10;
     base.location = {
       $near: {
-        $geometry: { type: "Point", coordinates: [Number(query.lng), Number(query.lat)] },
+        $geometry: { type: "Point", coordinates: [Number(lng), Number(lat)] },
         $maxDistance: maxKm * 1000,
       },
     };
@@ -128,7 +131,7 @@ const getAllBusinesses = async (query: QueryParams) => {
   const { meta, result } = await new QueryBuilder(
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
     query,
-  ).execute(["name"]);
+  ).execute(["name", "description", "address"]);
   return { meta, result: result.map(withOpen) };
 };
 

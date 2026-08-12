@@ -228,24 +228,27 @@ function enhanceCustomerRequests() {
                 statusCode: 200,
                 success: true,
                 message: "Trending creators retrieved",
-                data: [
-                  {
-                    _id: "6a7965d5f792519d4eada805",
-                    user: {
-                      _id: "6a7965d5f792519d4eada804",
-                      name: "Ahmed Hassan",
-                      profile_image: "https://cdn.somspot.so/profiles/ahmed_hassan.png",
+                data: {
+                  meta: { page: 1, limit: 10, total: 1, totalPage: 1 },
+                  result: [
+                    {
+                      _id: "6a7965d5f792519d4eada805",
+                      user: {
+                        _id: "6a7965d5f792519d4eada804",
+                        name: "Ahmed Hassan",
+                        profile_image: "https://cdn.somspot.so/profiles/ahmed_hassan.png",
+                      },
+                      bio: "Mogadishu's top food reviewer",
+                      category: {
+                        _id: "6a7965d4f792519d4eada7fe",
+                        name: "Food Creator",
+                        slug: "food-creator",
+                      },
+                      followerCount: 50000,
+                      engagementRate: 8.5,
                     },
-                    bio: "Mogadishu's top food reviewer",
-                    category: {
-                      _id: "6a7965d4f792519d4eada7fe",
-                      name: "Food Creator",
-                      slug: "food-creator",
-                    },
-                    followerCount: 50000,
-                    engagementRate: 8.5,
-                  },
-                ],
+                  ],
+                },
               },
               null,
               2,

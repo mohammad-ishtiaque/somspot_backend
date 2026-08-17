@@ -61,17 +61,18 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
 };
 
 const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload) => {
-  const targetBusinessId = query.businessId || query.business || query.id;
+  const { businessId, business: qBusiness, id, ...restQuery } = query;
+  const targetBusinessId = businessId || qBusiness || id;
   if (!targetBusinessId) throw new ApiError(status.BAD_REQUEST, "businessId is required");
 
   const business = await Business.findById(targetBusinessId).select("ratingAvg ratingCount");
   if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
 
   const { meta, result } = await new QueryBuilder(
-    Review.find({ business: targetBusinessId, moderationStatus: "visible" })
+    Review.find({ business: targetBusinessId, moderationStatus: { $ne: "hidden" } })
       .populate([{ path: "user", select: "name profile_image" }])
       .lean(),
-    query,
+    restQuery,
   ).execute([]);
 
   const targetUserId = userData?.userId;

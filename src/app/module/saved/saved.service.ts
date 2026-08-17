@@ -41,14 +41,15 @@ const toggleSaved = async (
 };
 
 const getAllSaved = async (userData: AuthUserPayload, query: QueryParams) => {
-  const type = String(query.type || "business").toLowerCase();
+  const type = query.type ? String(query.type).toLowerCase() : "all";
   const filter: Record<string, unknown> = { user: userData.userId };
 
   if (type === "offer") {
     filter.offer = { $exists: true, $ne: null };
-  } else {
+  } else if (type === "business") {
     filter.business = { $exists: true, $ne: null };
   }
+  // if type === "all", we don't restrict to just offer or business, it gets everything
 
   const { meta, result } = await new QueryBuilder(
     Saved.find(filter)

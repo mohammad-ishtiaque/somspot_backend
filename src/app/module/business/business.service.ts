@@ -8,6 +8,7 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
 import BusinessView from "./BusinessView";
 import User from "../user/User";
+import Saved from "../saved/Saved";
 const tzlookup = require("tz-lookup");
 
 // Resolve an IANA timezone dynamically: an explicit value wins; otherwise
@@ -165,6 +166,21 @@ const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) 
     };
   }
 
+  let savedBusinessIds: Set<string> | undefined;
+  if (userData?.userId) {
+    const savedDocs = await Saved.find({ user: userData.userId, business: { $exists: true, $ne: null } }).select("business").lean();
+    savedBusinessIds = new Set(savedDocs.map(d => String(d.business)));
+    
+    if (query.isSaved === "true" || query.isSaved === true) {
+      if (savedDocs.length === 0) {
+        return { meta: { page: 1, limit: 10, total: 0, totalPage: 0 }, result: [] };
+      }
+      base._id = { $in: Array.from(savedBusinessIds) };
+    }
+  } else if (query.isSaved === "true" || query.isSaved === true) {
+    throw new ApiError(status.UNAUTHORIZED, "Login required to view saved businesses");
+  }
+
   const { meta, result } = await new QueryBuilder(
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
     query,
@@ -189,6 +205,7 @@ const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) 
       ...withOpenDoc,
       distanceKm,
       distanceLabel,
+      isSaved: savedBusinessIds ? savedBusinessIds.has(String(b._id)) : false,
     };
   });
 
@@ -258,10 +275,17 @@ const getBusiness = async (
     }
   }
 
+  let isSaved = false;
+  if (userData?.userId) {
+    const saved = await Saved.exists({ user: userData.userId, business: business._id });
+    isSaved = !!saved;
+  }
+
   return {
     ...enriched,
     distanceKm,
     distanceLabel,
+    isSaved,
   };
 };
 

@@ -8,6 +8,7 @@ import { AuthUserPayload } from "../../../types/auth.types";
 import Offer from "./Offer";
 import Business from "../business/Business";
 import Claim from "../claim/Claim";
+import Saved from "../saved/Saved";
 
 // Derived status, evaluated fresh on every read (never persisted): a manually
 // paused offer stays INACTIVE; otherwise a future startAt makes it SCHEDULED,
@@ -100,6 +101,21 @@ const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
     base.business = { $in: businessFilterIds };
   }
 
+  let savedOfferIds: Set<string> | undefined;
+  if (userData?.userId) {
+    const savedDocs = await Saved.find({ user: userData.userId, offer: { $exists: true, $ne: null } }).select("offer").lean();
+    savedOfferIds = new Set(savedDocs.map(d => String(d.offer)));
+    
+    if (query.isSaved === "true" || query.isSaved === true) {
+      if (savedDocs.length === 0) {
+        return { meta: { page: 1, limit: 10, total: 0, totalPage: 0 }, result: [] };
+      }
+      base._id = { $in: Array.from(savedOfferIds) };
+    }
+  } else if (query.isSaved === "true" || query.isSaved === true) {
+    throw new ApiError(status.UNAUTHORIZED, "Login required to view saved offers");
+  }
+
   const { meta, result } = await new QueryBuilder(
     Offer.find(base).populate([{ path: "business", select: "name logo category address ratingAvg" }]).lean(),
     query,
@@ -134,6 +150,7 @@ const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
         claimCode: claim ? claim.code : null,
         claimStatus: claim ? claim.status : null,
         claimId: claim ? String(claim._id) : null,
+        isSaved: savedOfferIds ? savedOfferIds.has(String(o._id)) : false,
       };
     });
 
@@ -146,6 +163,7 @@ const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
     claimCode: null,
     claimStatus: null,
     claimId: null,
+    isSaved: false,
   }));
 
   return { meta, result: publicResult };
@@ -171,10 +189,17 @@ const getOffer = async (
   let claimStatus: string | null = null;
   let claimId: string | null = null;
 
+  let isSaved = false;
+
   const targetUserId = userData?.userId;
   const targetAuthId = userData?.authId;
 
   if (targetUserId || targetAuthId) {
+    if (targetUserId) {
+      const saved = await Saved.exists({ user: targetUserId, offer: offer._id });
+      isSaved = !!saved;
+    }
+
     const userQueryConditions: any[] = [];
     if (targetUserId) userQueryConditions.push({ user: targetUserId });
     if (targetAuthId) userQueryConditions.push({ user: targetAuthId });
@@ -200,6 +225,7 @@ const getOffer = async (
     claimCode,
     claimStatus,
     claimId,
+    isSaved,
   };
 };
 

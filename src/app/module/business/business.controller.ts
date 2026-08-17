@@ -39,8 +39,24 @@ const createBusiness = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+import config from "../../../config";
+import { jwtHelpers } from "../../../util/jwtHelpers";
+import { AuthUserPayload } from "../../../types/auth.types";
+
 const getAllBusinesses = catchAsync(async (req: Request, res: Response) => {
-  const result = await BusinessService.getAllBusinesses(req.query as QueryParams);
+  let user = req.user;
+  if (!user && req.headers.authorization?.startsWith("Bearer ")) {
+    try {
+      const token = req.headers.authorization.split(" ")[1]?.trim();
+      if (token) {
+        user = jwtHelpers.verifyToken<AuthUserPayload>(token, config.jwt.secret);
+      }
+    } catch {
+      /* ignore invalid token in optional route */
+    }
+  }
+
+  const result = await BusinessService.getAllBusinesses(req.query as QueryParams, user);
   sendResponse(res, {
     statusCode: 200,
     success: true,
@@ -60,7 +76,19 @@ const getTrending = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getBusiness = catchAsync(async (req: Request, res: Response) => {
-  const result = await BusinessService.getBusiness(req.user, req.query, req.ip);
+  let user = req.user;
+  if (!user && req.headers.authorization?.startsWith("Bearer ")) {
+    try {
+      const token = req.headers.authorization.split(" ")[1]?.trim();
+      if (token) {
+        user = jwtHelpers.verifyToken<AuthUserPayload>(token, config.jwt.secret);
+      }
+    } catch {
+      /* ignore invalid token in optional route */
+    }
+  }
+
+  const result = await BusinessService.getBusiness(user, req.query, req.ip);
   sendResponse(res, {
     statusCode: 200,
     success: true,

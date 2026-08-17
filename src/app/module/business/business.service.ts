@@ -318,6 +318,8 @@ const updateBusiness = async (userData: AuthUserPayload, payload: Record<string,
   return business;
 };
 
+import postNotification from "../../../util/postNotification";
+
 // Admin approves / rejects a submitted business (Figma verification flow).
 const verifyBusiness = async (payload: { businessId?: string; action?: string; rejectionReason?: string }) => {
   validateFields(payload, ["businessId", "action"]);
@@ -342,6 +344,13 @@ const verifyBusiness = async (payload: { businessId?: string; action?: string; r
     { returnDocument: "after" },
   );
   if (!result) throw new ApiError(status.NOT_FOUND, "Business not found");
+
+  if (nextStatus === EnumBusinessStatus.APPROVED) {
+    postNotification("Business Approved", `Your business ${result.name} has been approved!`, String(result.owner));
+  } else if (nextStatus === EnumBusinessStatus.REJECTED) {
+    postNotification("Business Rejected", `Your business ${result.name} was rejected. Reason: ${result.rejectionReason}`, String(result.owner));
+  }
+
   return result;
 };
 

@@ -432,27 +432,33 @@ const getApplication = async (userData: AuthUserPayload, query: { applicationId?
   };
 };
 
+import postNotification from "../../../util/postNotification";
+
 // Merchant reviews the creator's uploaded draft video.
 const reviewDraft = async (
   userData: AuthUserPayload,
   payload: { applicationId?: string; action?: string; merchantNote?: string },
 ) => {
   validateFields(payload, ["applicationId", "action"]);
-  const application = await CampaignApplication.findById(payload.applicationId);
+  const application = await CampaignApplication.findById(payload.applicationId).populate("campaign", "name");
   if (!application) throw new ApiError(status.NOT_FOUND, "Application not found");
-  await assertOwnsCampaign(userData, String(application.campaign));
+  await assertOwnsCampaign(userData, String(application.campaign?._id || application.campaign));
 
   if (application.status !== EnumTaskStatus.DRAFT_SUBMITTED)
     throw new ApiError(status.BAD_REQUEST, "No draft awaiting review");
+
+  const campaignName = (application.campaign as any)?.name;
 
   if (payload.action === "approve") {
     application.draftApproved = true;
     application.merchantNote = payload.merchantNote;
     application.status = EnumTaskStatus.DRAFT_APPROVED; // ready for the creator to post
+    postNotification("Draft Approved", `Your draft for campaign ${campaignName} was approved!`, String(application.creator));
   } else if (payload.action === "reject") {
     application.status = EnumTaskStatus.APPROVED; // Reset to approved so creator can resubmit
     application.draftApproved = false;
     application.merchantNote = payload.merchantNote;
+    postNotification("Draft Rejected", `Your draft for campaign ${campaignName} needs revisions: ${payload.merchantNote}`, String(application.creator));
   } else {
     throw new ApiError(status.BAD_REQUEST, "action must be approve or reject");
   }

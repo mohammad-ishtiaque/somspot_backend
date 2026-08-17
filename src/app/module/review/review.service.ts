@@ -148,22 +148,28 @@ const deleteReview = async (userData: AuthUserPayload, payload: { reviewId?: str
 };
 
 
+import postNotification from "../../../util/postNotification";
+
 // Admin review moderation (Figma: Approve / Hide / Delete).
 const adminModerate = async (payload: { reviewId?: string; action?: string }) => {
   validateFields(payload, ["reviewId", "action"]);
-  const review = await Review.findById(payload.reviewId);
+  const review = await Review.findById(payload.reviewId).populate("business", "name");
   if (!review) throw new ApiError(status.NOT_FOUND, "Review not found");
 
   if (payload.action === "approve") {
     review.moderationStatus = "visible";
     await review.save();
+    postNotification("Review Approved", `Your review for ${(review.business as any)?.name} is now visible.`, String(review.user));
   } else if (payload.action === "hide") {
     review.moderationStatus = "hidden";
     await review.save();
+    postNotification("Review Hidden", `Your review for ${(review.business as any)?.name} was hidden by a moderator.`, String(review.user));
   } else if (payload.action === "delete") {
     const businessId = review.business;
+    const business = await Business.findById(businessId).select("name");
     await review.deleteOne();
     await recomputeBusinessRating(businessId);
+    postNotification("Review Deleted", `Your review for ${business?.name} was deleted by a moderator.`, String(review.user));
     return { deleted: true };
   } else {
     throw new ApiError(status.BAD_REQUEST, "action must be approve, hide or delete");

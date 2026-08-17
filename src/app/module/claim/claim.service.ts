@@ -84,13 +84,15 @@ const getClaim = async (userData: AuthUserPayload, query: { claimId?: string }) 
   return claim;
 };
 
+import postNotification from "../../../util/postNotification";
+
 // Merchant redeems a claim by its code (Figma: "Show this code to the merchant").
 const redeemClaim = async (userData: AuthUserPayload, payload: { code?: string }) => {
   validateFields(payload, ["code"]);
-  const claim = await Claim.findOne({ code: payload.code });
+  const claim = await Claim.findOne({ code: payload.code }).populate("offer", "title");
   if (!claim) throw new ApiError(status.NOT_FOUND, "Claim code not found");
 
-  const business = await Business.findById(claim.business).select("owner");
+  const business = await Business.findById(claim.business).select("owner name");
   if (!isPrivileged(userData.role) && String(business?.owner) !== userData.userId)
     throw new ApiError(status.FORBIDDEN, "This code is not for your business");
 
@@ -102,6 +104,10 @@ const redeemClaim = async (userData: AuthUserPayload, payload: { code?: string }
   claim.status = EnumClaimStatus.REDEEMED;
   claim.redeemedAt = new Date();
   await claim.save();
+
+  // Notify user
+  postNotification("Claim Redeemed", `Your claim for ${(claim.offer as any)?.title} was successfully redeemed at ${business?.name}.`, String(claim.user));
+
   return claim;
 };
 

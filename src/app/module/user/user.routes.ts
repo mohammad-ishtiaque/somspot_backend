@@ -14,6 +14,7 @@ router
     uploadFile(),
     UserController.updateProfile,
   )
+  .patch("/change-language", auth(config.auth_level.user), UserController.changeLanguage)
   .post("/rate-app", auth(config.auth_level.user), UserController.rateApp)
   .delete(
     "/delete-account",

@@ -108,10 +108,19 @@ const getProfile = async (userData: AuthUserPayload) => {
   const profLng = Array.isArray(profCoords) && profCoords[0] != null ? Number(profCoords[0]) : null;
   const profLat = Array.isArray(profCoords) && profCoords[1] != null ? Number(profCoords[1]) : null;
 
+  const [savedCount, claimsCount, reviewsCount] = await Promise.all([
+    Saved.countDocuments({ user: userId }),
+    Claim.countDocuments({ user: userId }),
+    Review.countDocuments({ user: userId }),
+  ]);
+
   return {
     ...result,
     lat: profLat,
     lng: profLng,
+    savedCount,
+    claimsCount,
+    reviewsCount,
   };
 };
 
@@ -218,6 +227,15 @@ const rateApp = async (userData: AuthUserPayload, payload: { rating?: number; co
   return result;
 };
 
+const changeLanguage = async (userData: AuthUserPayload, payload: { language?: string }) => {
+  validateFields(payload, ["language"]);
+  if (!["en", "so", "ar"].includes(payload.language!)) {
+    throw new ApiError(status.BAD_REQUEST, "Invalid language. Allowed: en, so, ar");
+  }
+  const user = await User.findByIdAndUpdate(userData.userId, { language: payload.language }, { new: true });
+  return user;
+};
+
 const UserService = {
   getProfile,
   deleteMyAccount,
@@ -226,6 +244,7 @@ const UserService = {
   adminGetUser,
   adminToggleBlock,
   rateApp,
+  changeLanguage,
 };
 
 export { UserService };

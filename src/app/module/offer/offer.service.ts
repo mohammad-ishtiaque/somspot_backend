@@ -169,6 +169,17 @@ const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
   return { meta, result: publicResult };
 };
 
+const getTopDeals = async (query: QueryParams, userData?: AuthUserPayload) => {
+  // Use getAllOffers but force sort by -estimatedValue and limit
+  const topDealsQuery = {
+    ...query,
+    sort: "-estimatedValue,-createdAt",
+    limit: query.limit || 10,
+    page: 1, // force page 1
+  };
+  return getAllOffers(topDealsQuery, userData);
+};
+
 const getOffer = async (
   query: { offerId?: string; id?: string; _id?: string },
   userData?: AuthUserPayload,
@@ -288,6 +299,7 @@ const adminGetAll = async (query: QueryParams) => {
 const OfferService = {
   createOffer,
   getAllOffers,
+  getTopDeals,
   getOffer,
   getMyOffers,
   updateOffer,

@@ -60,16 +60,54 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
   return { meta, result };
 };
 
-// Public: all reviews for one business (business detail "Reviews" tab).
-const getBusinessReviews = async (query: QueryParams) => {
-  validateFields(query, ["businessId"]);
+const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload) => {
+  const targetBusinessId = query.businessId || query.business || query.id;
+  if (!targetBusinessId) throw new ApiError(status.BAD_REQUEST, "businessId is required");
+
+  const business = await Business.findById(targetBusinessId).select("ratingAvg ratingCount");
+  if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
+
   const { meta, result } = await new QueryBuilder(
-    Review.find({ business: query.businessId, moderationStatus: "visible" })
+    Review.find({ business: targetBusinessId, moderationStatus: "visible" })
       .populate([{ path: "user", select: "name profile_image" }])
       .lean(),
     query,
   ).execute([]);
-  return { meta, result };
+
+  const targetUserId = userData?.userId;
+  const enrichedResult = result.map((r: any) => {
+    let isHelpful = false;
+    if (targetUserId && Array.isArray(r.helpfulUsers)) {
+      isHelpful = r.helpfulUsers.some((id: any) => String(id) === targetUserId);
+    }
+    const { helpfulUsers, ...rest } = r; // exclude helpfulUsers array from response for payload size
+    return { ...rest, isHelpful };
+  });
+
+  return { meta, businessRating: { avg: business.ratingAvg || 0, count: business.ratingCount || 0 }, result: enrichedResult };
+};
+
+const toggleHelpful = async (userData: AuthUserPayload, payload: { reviewId?: string }) => {
+  validateFields(payload, ["reviewId"]);
+  const review = await Review.findById(payload.reviewId);
+  if (!review) throw new ApiError(status.NOT_FOUND, "Review not found");
+
+  const userId = userData.userId as any;
+  const index = review.helpfulUsers.findIndex((id) => String(id) === String(userId));
+  
+  if (index === -1) {
+    review.helpfulUsers.push(userId);
+  } else {
+    review.helpfulUsers.splice(index, 1);
+  }
+  
+  review.helpfulCount = review.helpfulUsers.length;
+  await review.save();
+
+  return {
+    isHelpful: index === -1,
+    helpfulCount: review.helpfulCount,
+  };
 };
 
 const getReview = async (_userData: AuthUserPayload, query: { reviewId?: string }) => {
@@ -137,6 +175,7 @@ const ReviewService = {
   postReview,
   getAllReviews,
   getBusinessReviews,
+  toggleHelpful,
   getReview,
   updateReview,
   deleteReview,

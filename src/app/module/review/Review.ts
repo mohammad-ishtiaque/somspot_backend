@@ -7,6 +7,7 @@ export interface IReview {
   rating: number;
   review: string;
   helpfulCount: number;
+  helpfulUsers: Types.ObjectId[];
   moderationStatus: string; // visible | hidden
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +20,7 @@ const reviewSchema = new Schema<IReview>(
     rating: { type: Number, min: 1, max: 5, required: true },
     review: { type: String, required: true },
     helpfulCount: { type: Number, default: 0 },
+    helpfulUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
     moderationStatus: { type: String, enum: ["visible", "hidden"], default: "visible" },
   },
   { timestamps: true },

@@ -18,9 +18,31 @@ const getAllReviews = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Reviews retrieved", data: result });
 });
 
+import config from "../../../config";
+import { jwtHelpers } from "../../../util/jwtHelpers";
+import { AuthUserPayload } from "../../../types/auth.types";
+
 const getBusinessReviews = catchAsync(async (req: Request, res: Response) => {
-  const result = await ReviewService.getBusinessReviews(req.query as QueryParams);
+  let user = req.user;
+  if (!user && req.headers.authorization?.startsWith("Bearer ")) {
+    try {
+      const token = req.headers.authorization.split(" ")[1]?.trim();
+      if (token) {
+        user = jwtHelpers.verifyToken<AuthUserPayload>(token, config.jwt.secret);
+      }
+    } catch {
+      /* ignore invalid token in optional route */
+    }
+  }
+
+  const result = await ReviewService.getBusinessReviews(req.query as QueryParams, user);
   sendResponse(res, { statusCode: 200, success: true, message: "Business reviews retrieved", data: result });
+});
+
+const toggleHelpful = catchAsync(async (req: Request, res: Response) => {
+  if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
+  const result = await ReviewService.toggleHelpful(req.user, req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: result.isHelpful ? "Marked as helpful" : "Removed helpful mark", data: result });
 });
 
 const getReview = catchAsync(async (req: Request, res: Response) => {
@@ -51,6 +73,7 @@ const ReviewController = {
   postReview,
   getAllReviews,
   getBusinessReviews,
+  toggleHelpful,
   getReview,
   updateReview,
   deleteReview,

@@ -168,6 +168,21 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const logout = catchAsync(async (req: Request, res: Response) => {
+  // Clear the refresh token cookie if one was set
+  const cookieOptions = {
+    secure: config.env === "production",
+    httpOnly: true,
+  };
+  res.clearCookie("refreshToken", cookieOptions);
+  
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Logged out successfully",
+  });
+});
+
 const AuthController = {
   registrationAccount,
   activateAccount,
@@ -180,6 +195,7 @@ const AuthController = {
   requestPhoneOtp,
   verifyPhoneOtp,
   getMe,
+  logout,
 };
 
 export { AuthController };

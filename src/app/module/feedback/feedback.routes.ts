@@ -30,6 +30,16 @@ router
     "/delete-feedback",
     auth(config.auth_level.user),
     FeedbackController.deleteFeedback,
+  )
+  .get(
+    "/admin/list",
+    auth(config.auth_level.admin),
+    FeedbackController.getAllFeedbacks,
+  )
+  .get(
+    "/admin/details",
+    auth(config.auth_level.admin),
+    FeedbackController.getFeedback,
   );
 
 export = router;

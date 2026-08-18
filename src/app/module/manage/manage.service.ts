@@ -71,9 +71,17 @@ const deleteAboutUs = async ({ id }: IdQuery) => {
   return result;
 };
 
-const addFaq = (payload: object) => upsertDoc(FAQ, payload, "FAQ updated");
+const addFaq = async (payload: { id?: string; question?: string; description?: string }) => {
+  if (payload.id) {
+    const faq = await FAQ.findByIdAndUpdate(payload.id, payload, { new: true, runValidators: true });
+    if (!faq) throw new ApiError(status.NOT_FOUND, "FAQ not found");
+    return { message: "FAQ updated", result: faq };
+  }
+  const faq = await FAQ.create(payload);
+  return { message: "FAQ created", result: faq };
+};
 
-const getFaq = () => FAQ.findOne({});
+const getFaq = () => FAQ.find({});
 
 const deleteFaq = async ({ id }: IdQuery) => {
   const result = await FAQ.deleteOne({ _id: id });

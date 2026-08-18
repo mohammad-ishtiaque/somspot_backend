@@ -19,9 +19,22 @@ export const PrivacyPolicy: Model<IDescription> = mongoose.model(
   descriptionSchema,
 );
 
-export const FAQ: Model<IDescription> = mongoose.model(
+export interface IFAQ extends Document {
+  question: string;
+  description: string;
+}
+
+const faqSchema = new mongoose.Schema<IFAQ>(
+  {
+    question: { type: String, required: true },
+    description: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+
+export const FAQ: Model<IFAQ> = mongoose.model(
   "FAQ",
-  descriptionSchema,
+  faqSchema,
 );
 
 export const AboutUs: Model<IDescription> = mongoose.model(

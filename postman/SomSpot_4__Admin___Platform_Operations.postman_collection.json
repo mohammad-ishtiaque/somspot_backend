@@ -2,98 +2,1376 @@
   "info": {
     "name": "SomSpot API - 4. Admin & Platform Operations",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "APIs for Admin Control Panel (Approvals, Campaign Assignment, Moderation, System Settings)"
+    "description": "APIs for Admin Control Panel (Approvals, Campaign Assignment, Moderation, System Settings). Includes app flow details in descriptions."
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8001"
-    },
-    {
-      "key": "userToken",
-      "value": ""
-    },
-    {
-      "key": "merchantToken",
-      "value": ""
-    },
-    {
-      "key": "creatorToken",
-      "value": ""
+      "value": "http://localhost:8001/api/v1"
     },
     {
       "key": "adminToken",
       "value": ""
-    },
-    {
-      "key": "businessId",
-      "value": ""
-    },
-    {
-      "key": "categoryId",
-      "value": ""
-    },
-    {
-      "key": "offerId",
-      "value": ""
-    },
-    {
-      "key": "claimId",
-      "value": ""
-    },
-    {
-      "key": "campaignId",
-      "value": ""
-    },
-    {
-      "key": "applicationId",
-      "value": ""
-    },
-    {
-      "key": "reviewId",
-      "value": ""
-    },
-    {
-      "key": "payoutId",
-      "value": ""
-    },
-    {
-      "key": "userId",
-      "value": ""
-    },
-    {
-      "key": "merchantId",
-      "value": ""
-    },
-    {
-      "key": "paymentId",
-      "value": ""
-    },
-    {
-      "key": "feedbackId",
-      "value": ""
-    },
-    {
-      "key": "chatId",
-      "value": ""
-    },
-    {
-      "key": "creatorUserId",
-      "value": "",
-      "description": "The User _id (not the Creator profile id) of a creator to invite in campaign/create's invitedCreator field"
-    },
-    {
-      "key": "notificationId",
-      "value": ""
-    },
-    {
-      "key": "lang",
-      "value": "so"
-    },
-    {
-      "key": "manageDocId",
-      "value": ""
     }
   ],
-  "item": []
+  "item": [
+    {
+      "name": "1. Auth & Profile",
+      "item": [
+        {
+          "name": "Get Admin Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "profile"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Fetches the current admin profile info when dashboard loads."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Platform Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "analytics"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Populates the admin dashboard charts with system-wide counts and revenue data."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Admin Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/edit-profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "edit-profile"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Allows admin to update their personal info.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Super Admin",
+                  "type": "text"
+                },
+                {
+                  "key": "phoneNumber",
+                  "value": "+1234567890",
+                  "type": "text"
+                },
+                {
+                  "key": "profile_image",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/delete-account",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "delete-account"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Deletes the admin account permanently.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@somspot.com\",\n  \"password\": \"password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. User Management",
+      "item": [
+        {
+          "name": "List Consumers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Lists all consumer users for auditing."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Consumer Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/admin/details?id={{userId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "admin",
+                "details"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}"
+                }
+              ]
+            },
+            "description": "App Flow: Gets details of a single user."
+          },
+          "response": []
+        },
+        {
+          "name": "Block/Unblock Consumer",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/user/admin/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "user",
+                "admin",
+                "block"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Restricts abusive users.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"isBlocked\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Merchants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Audits merchants on the platform."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Merchant Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/admin/details?id={{merchantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "admin",
+                "details"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{merchantId}}"
+                }
+              ]
+            },
+            "description": "App Flow: Views a specific merchant."
+          },
+          "response": []
+        },
+        {
+          "name": "Block/Unblock Merchant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/merchant/admin/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "merchant",
+                "admin",
+                "block"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Revokes merchant access.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchantId\": \"{{merchantId}}\",\n  \"isBlocked\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Creators",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Reviews influencers on the platform."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Creator Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/admin/get?id={{creatorUserId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "admin",
+                "get"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{creatorUserId}}"
+                }
+              ]
+            },
+            "description": "App Flow: Views specific creator profile."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Platform Moderation",
+      "item": [
+        {
+          "name": "List Businesses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Finds all pending or approved businesses."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Business",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/business/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business",
+                "verify"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Approves a business submitted by a merchant so it can be active.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"status\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Finds campaigns requiring review."
+          },
+          "response": []
+        },
+        {
+          "name": "Review Campaign",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/review",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "review"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Approves a marketing campaign created by a merchant.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"status\": \"APPROVED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Creator to Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/campaign/admin/assign-creator",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaign",
+                "admin",
+                "assign-creator"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Maps an influencer to a merchant campaign manually.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": \"{{campaignId}}\",\n  \"creatorId\": \"{{creatorUserId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Moderate Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/review/admin/moderate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "review",
+                "admin",
+                "moderate"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Removes spam or inappropriate consumer reviews.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewId\": \"{{reviewId}}\",\n  \"action\": \"hide\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Finances & Payouts",
+      "item": [
+        {
+          "name": "Process Creator Payout",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/creator/payout/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creator",
+                "payout",
+                "process"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Completes the financial loop after transferring money to a creator.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payoutId\": \"{{payoutId}}\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payment/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Views platform incoming payments."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payment/admin/details?id={{paymentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payment",
+                "admin",
+                "details"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{paymentId}}"
+                }
+              ]
+            },
+            "description": "App Flow: View specific payment record."
+          },
+          "response": []
+        },
+        {
+          "name": "List Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/subscription/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subscription",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Track active merchant subscriptions."
+          },
+          "response": []
+        },
+        {
+          "name": "List Offers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/offer/admin/list?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "offer",
+                "admin",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: View all active offers across platform."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Categories & Settings",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "create"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Creates global category.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Food",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/update",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "update"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Updates existing category.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "id",
+                  "value": "{{categoryId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "Food & Drinks",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/category/delete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "category",
+                "delete"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Deletes global category.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{categoryId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Global Settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/setting/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "setting"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Retrieves global platform config (fees, etc)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Global Settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/setting/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "setting"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Updates global platform config.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commissionRate\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Static Content & Feedback",
+      "item": [
+        {
+          "name": "Add Terms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/add-terms-conditions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "add-terms-conditions"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Adds TOS text.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"New Terms\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Terms",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/delete-terms-conditions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "delete-terms-conditions"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Deletes TOS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{manageDocId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add FAQ",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/add-faq",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "add-faq"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Adds FAQ item.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Q?\",\n  \"answer\": \"A!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete FAQ",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/manage/delete-faq",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "manage",
+                "delete-faq"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Deletes FAQ.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{manageDocId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Broadcast Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notification/admin/broadcast",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notification",
+                "admin",
+                "broadcast"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Pushes alerts to all users.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Maintenance\",\n  \"body\": \"Downtime expected\",\n  \"targetRole\": \"USER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Feedback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feedback/get-all?searchTerm=&page=1&limit=10&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feedback",
+                "get-all"
+              ],
+              "query": [
+                {
+                  "key": "searchTerm",
+                  "value": "",
+                  "description": "Search term for filtering"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "Sorting order"
+                }
+              ]
+            },
+            "description": "App Flow: Lists user feedback."
+          },
+          "response": []
+        },
+        {
+          "name": "Reply to Feedback",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "{{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/feedback/update-with-reply",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "feedback",
+                "update-with-reply"
+              ],
+              "query": []
+            },
+            "description": "App Flow: Sends reply to user issue.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"feedbackId\": \"{{feedbackId}}\",\n  \"replyText\": \"We fixed this!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
 }

@@ -171,13 +171,13 @@ const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) 
     const savedDocs = await Saved.find({ user: userData.userId, business: { $exists: true, $ne: null } }).select("business").lean();
     savedBusinessIds = new Set(savedDocs.map(d => String(d.business)));
     
-    if (query.isSaved === "true" || query.isSaved === true) {
+    if (String(query.isSaved) === "true") {
       if (savedDocs.length === 0) {
         return { meta: { page: 1, limit: 10, total: 0, totalPage: 0 }, result: [] };
       }
       base._id = { $in: Array.from(savedBusinessIds) };
     }
-  } else if (query.isSaved === "true" || query.isSaved === true) {
+  } else if (String(query.isSaved) === "true") {
     throw new ApiError(status.UNAUTHORIZED, "Login required to view saved businesses");
   }
 

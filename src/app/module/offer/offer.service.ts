@@ -106,13 +106,13 @@ const getAllOffers = async (query: QueryParams, userData?: AuthUserPayload) => {
     const savedDocs = await Saved.find({ user: userData.userId, offer: { $exists: true, $ne: null } }).select("offer").lean();
     savedOfferIds = new Set(savedDocs.map(d => String(d.offer)));
     
-    if (query.isSaved === "true" || query.isSaved === true) {
+    if (String(query.isSaved) === "true") {
       if (savedDocs.length === 0) {
         return { meta: { page: 1, limit: 10, total: 0, totalPage: 0 }, result: [] };
       }
       base._id = { $in: Array.from(savedOfferIds) };
     }
-  } else if (query.isSaved === "true" || query.isSaved === true) {
+  } else if (String(query.isSaved) === "true") {
     throw new ApiError(status.UNAUTHORIZED, "Login required to view saved offers");
   }
 
@@ -174,8 +174,8 @@ const getTopDeals = async (query: QueryParams, userData?: AuthUserPayload) => {
   const topDealsQuery = {
     ...query,
     sort: "-estimatedValue,-createdAt",
-    limit: query.limit || 10,
-    page: 1, // force page 1
+    limit: String(query.limit || 10),
+    page: "1", // force page 1
   };
   return getAllOffers(topDealsQuery, userData);
 };

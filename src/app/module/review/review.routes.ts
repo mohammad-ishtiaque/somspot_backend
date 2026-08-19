@@ -8,7 +8,7 @@ const router = Router();
 router
   .post("/post-review", auth(config.auth_level.user), ReviewController.postReview)
   .get("/get-all-reviews", auth(config.auth_level.user), ReviewController.getAllReviews)
-  .get("/get-business-reviews", ReviewController.getBusinessReviews)
+  .get("/get-business-reviews", auth([], false), ReviewController.getBusinessReviews)
   .post("/toggle-helpful", auth(config.auth_level.user), ReviewController.toggleHelpful)
   .get("/get-review", auth(config.auth_level.user), ReviewController.getReview)
   .patch("/update-review", auth(config.auth_level.user), ReviewController.updateReview)

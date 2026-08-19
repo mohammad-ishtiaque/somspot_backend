@@ -95,10 +95,15 @@ const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload
   const enrichedResult = result.map((r: any) => {
     let isHelpful = false;
     if (targetUserId && Array.isArray(r.helpfulUsers)) {
-      isHelpful = r.helpfulUsers.some((id: any) => String(id) === targetUserId);
+      isHelpful = r.helpfulUsers.some((id: any) => String(id) === String(targetUserId));
     }
+    const helpfulCount = r.helpfulCount ?? (Array.isArray(r.helpfulUsers) ? r.helpfulUsers.length : 0);
     const { helpfulUsers, ...rest } = r; // exclude helpfulUsers array from response for payload size
-    return { ...rest, isHelpful };
+    return {
+      ...rest,
+      helpfulCount,
+      isHelpful,
+    };
   });
 
   return { meta, businessRating: { avg: business.ratingAvg || 0, count: business.ratingCount || 0 }, result: enrichedResult };

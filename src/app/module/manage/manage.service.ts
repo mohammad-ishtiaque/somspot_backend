@@ -5,8 +5,15 @@ import {
   AboutUs,
   FAQ,
   ContactUs,
-} from "./Manage";
-import ApiError from "../../../error/ApiError";
+import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
+
+const getFaq = async (query: QueryParams) => {
+  const { meta, result } = await new QueryBuilder(
+    FAQ.find({}).lean(),
+    query,
+  ).execute(["question", "description"]);
+  return { meta, result };
+};
 
 interface IdQuery {
   id: string;
@@ -80,8 +87,6 @@ const addFaq = async (payload: { id?: string; question?: string; description?: s
   const faq = await FAQ.create(payload);
   return { message: "FAQ created", result: faq };
 };
-
-const getFaq = () => FAQ.find({});
 
 const deleteFaq = async ({ id }: IdQuery) => {
   const result = await FAQ.deleteOne({ _id: id });

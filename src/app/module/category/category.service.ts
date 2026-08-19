@@ -24,7 +24,7 @@ const createCategory = async (payload: Record<string, any>) => {
     name,
     slug,
     type,
-    icon: payload.icon,
+    icon: payload.icon || "",
     order: payload.order ?? 0,
   });
 };
@@ -34,14 +34,23 @@ const getAllCategories = async (query: QueryParams) => {
     Category.find({ isActive: true }).lean(),
     query,
   ).execute(["name"]);
-  return { meta, result };
+
+  const sanitizedResult = result.map((cat: any) => ({
+    ...cat,
+    icon: cat.icon || "",
+  }));
+
+  return { meta, result: sanitizedResult };
 };
 
 const getCategory = async (query: { categoryId?: string }) => {
   validateFields(query, ["categoryId"]);
   const category = await Category.findById(query.categoryId).lean();
   if (!category) throw new ApiError(status.NOT_FOUND, "Category not found");
-  return category;
+  return {
+    ...category,
+    icon: category.icon || "",
+  };
 };
 
 const updateCategory = async (payload: Record<string, unknown>) => {

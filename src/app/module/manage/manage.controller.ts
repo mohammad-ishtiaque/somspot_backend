@@ -98,12 +98,14 @@ const addFaq = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message, data });
 });
 
-const getFaq = catchAsync(async (_req: Request, res: Response) => {
-  const data = await ManageService.getFaq();
+import { QueryParams } from "../../../builder/queryBuilder";
+
+const getFaq = catchAsync(async (req: Request, res: Response) => {
+  const data = await ManageService.getFaq(req.query as QueryParams);
   sendResponse(res, {
     statusCode: 200,
     success: true,
-    message: "Successful",
+    message: "FAQ list retrieved successfully",
     data,
   });
 });

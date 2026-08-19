@@ -1582,24 +1582,28 @@
 ### 9.8 Get Frequently Asked Questions (FAQ) (Newly Added)
 - **Route**: `GET {{baseUrl}}/manage/get-faq`
 - **Auth**: Public
+- **Query Filters**: `page=1`, `limit=10`, `searchTerm` *(optional)*
 - **Success Response (`200 OK`)**:
 ```json
 {
   "statusCode": 200,
   "success": true,
   "message": "FAQ list retrieved successfully",
-  "data": [
-    {
-      "_id": "6a7965d5f792519d4eada930",
-      "question": "How do I claim a discount voucher?",
-      "description": "Simply browse to any active offer on SomSpot and tap the 'Claim Offer' button to generate your unique claim code."
-    },
-    {
-      "_id": "6a7965d5f792519d4eada931",
-      "question": "How do I redeem my claimed deal at a store?",
-      "description": "Show your claim QR code or claim ID in your wallet to the merchant cashier when checking out."
-    }
-  ]
+  "data": {
+    "meta": { "page": 1, "limit": 10, "total": 2, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada930",
+        "question": "How do I claim a discount voucher?",
+        "description": "Simply browse to any active offer on SomSpot and tap the 'Claim Offer' button to generate your unique claim code."
+      },
+      {
+        "_id": "6a7965d5f792519d4eada931",
+        "question": "How do I redeem my claimed deal at a store?",
+        "description": "Show your claim QR code or claim ID in your wallet to the merchant cashier when checking out."
+      }
+    ]
+  }
 }
 ```
 

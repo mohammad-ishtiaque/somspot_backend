@@ -19,7 +19,7 @@ const categorySchema = new Schema<ICategory>(
     // Not globally unique — "Fashion" can exist once as a merchant category
     // and once as a creator category. Uniqueness is enforced per type below.
     slug: { type: String, required: true, lowercase: true, trim: true },
-    icon: { type: String },
+    icon: { type: String, default: "" },
     type: { type: String, enum: Object.values(EnumCategoryType), default: EnumCategoryType.MERCHANT },
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

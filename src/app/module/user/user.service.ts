@@ -159,16 +159,19 @@ export const deleteMyAccount = async (payload: {
 
 // ---------------- Admin management ----------------
 
-// Admin "Users Management" list. Optional ?role filter (USER | MERCHANT | CREATOR).
+// Admin "Users Management" list. Supports ?role and ?status filter (active | blocked).
 const adminGetAllUsers = async (query: QueryParams) => {
-  // `role` lives on Auth, not User — resolve it to matching authIds and keep it
-  // OUT of the QueryBuilder query so filter() doesn't apply a bogus
-  // { role } filter on the User collection (which has no role field).
-  const { role, ...listQuery } = query;
+  const { role, status: statusFilter, ...listQuery } = query;
 
   const base: Record<string, unknown> = {};
-  if (role) {
-    const auths = await Auth.find({ role }).select("_id").lean();
+
+  const authMatch: Record<string, unknown> = {};
+  if (role) authMatch.role = role;
+  if (statusFilter === "active") authMatch.isBlocked = false;
+  else if (statusFilter === "blocked") authMatch.isBlocked = true;
+
+  if (Object.keys(authMatch).length > 0) {
+    const auths = await Auth.find(authMatch).select("_id").lean();
     base.authId = { $in: auths.map((a) => a._id) };
   }
 
@@ -178,7 +181,31 @@ const adminGetAllUsers = async (query: QueryParams) => {
       .lean(),
     listQuery as QueryParams,
   ).execute(["name", "email"]);
-  return { meta, result };
+
+  const enrichedResult = await Promise.all(
+    result.map(async (u: any) => {
+      const [savedCount, claimedCount] = await Promise.all([
+        Saved.countDocuments({ user: u._id }),
+        Claim.countDocuments({ user: u._id }),
+      ]);
+
+      const isBlocked = u.authId?.isBlocked || false;
+      const statusStr = isBlocked ? "blocked" : "active";
+      const phone = u.phoneNumber || u.authId?.phoneNumber || "";
+
+      return {
+        ...u,
+        phoneNumber: phone,
+        status: statusStr,
+        savedCount,
+        claimedCount,
+        saved: savedCount,
+        claimed: claimedCount,
+      };
+    }),
+  );
+
+  return { meta, result: enrichedResult };
 };
 
 // Admin "User Details & Activity".
@@ -189,15 +216,30 @@ const adminGetUser = async (query: { userId?: string }) => {
     .lean();
   if (!user) throw new ApiError(status.NOT_FOUND, "User not found");
 
-  const [savedBusinesses, claimsCount, reviewsCount] = await Promise.all([
+  const [savedBusinesses, claimsCount, reviewsCount, savedCount] = await Promise.all([
     Saved.find({ user: query.userId })
       .populate([{ path: "business", select: "name logo" }])
       .lean(),
     Claim.countDocuments({ user: query.userId }),
     Review.countDocuments({ user: query.userId }),
+    Saved.countDocuments({ user: query.userId }),
   ]);
 
-  return { user, savedBusinesses, activity: { claimsCount, reviewsCount } };
+  const isBlocked = (user as any).authId?.isBlocked || false;
+  const statusStr = isBlocked ? "blocked" : "active";
+
+  return {
+    user: {
+      ...user,
+      status: statusStr,
+    },
+    savedBusinesses,
+    activity: {
+      savedCount,
+      claimsCount,
+      reviewsCount,
+    },
+  };
 };
 
 // Admin block / unblock a user account.

@@ -158,7 +158,7 @@
 ### 2.1 Get Paginated Users List
 - **Route**: `GET {{baseUrl}}/user/admin/list`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
-- **Query Filters**: `page=1`, `limit=10`, `searchTerm=abdul`, `role=USER` *(optional: USER | MERCHANT | CREATOR)*
+- **Query Filters**: `page=1`, `limit=10`, `searchTerm=ahmed`, `status=active` *(optional: active | blocked)*, `role=USER` *(optional)*
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -182,6 +182,11 @@
         "email": "abdul.karim@example.com",
         "phoneNumber": "+252612345678",
         "profile_image": "https://cdn.somspot.so/profiles/abdul_karim.png",
+        "saved": 12,
+        "claimed": 5,
+        "savedCount": 12,
+        "claimedCount": 5,
+        "status": "active",
         "createdAt": "2026-08-10T05:47:01.436Z"
       }
     ]

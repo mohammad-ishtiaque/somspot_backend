@@ -57,7 +57,23 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
       .lean(),
     query,
   ).execute([]);
-  return { meta, result };
+
+  const targetUserId = userData?.userId;
+  const enrichedResult = result.map((r: any) => {
+    let isHelpful = false;
+    if (targetUserId && Array.isArray(r.helpfulUsers)) {
+      isHelpful = r.helpfulUsers.some((id: any) => String(id) === targetUserId);
+    }
+    const helpfulCount = r.helpfulCount ?? (Array.isArray(r.helpfulUsers) ? r.helpfulUsers.length : 0);
+    const { helpfulUsers, ...rest } = r;
+    return {
+      ...rest,
+      helpfulCount,
+      isHelpful,
+    };
+  });
+
+  return { meta, result: enrichedResult };
 };
 
 const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload) => {
@@ -111,13 +127,26 @@ const toggleHelpful = async (userData: AuthUserPayload, payload: { reviewId?: st
   };
 };
 
-const getReview = async (_userData: AuthUserPayload, query: { reviewId?: string }) => {
+const getReview = async (userData: AuthUserPayload, query: { reviewId?: string }) => {
   validateFields(query, ["reviewId"]);
   const review = await Review.findById(query.reviewId)
     .populate([{ path: "user", select: "name profile_image" }])
     .lean();
   if (!review) throw new ApiError(status.NOT_FOUND, "Review not found");
-  return review;
+
+  const targetUserId = userData?.userId;
+  let isHelpful = false;
+  if (targetUserId && Array.isArray((review as any).helpfulUsers)) {
+    isHelpful = (review as any).helpfulUsers.some((id: any) => String(id) === String(targetUserId));
+  }
+  const helpfulCount = (review as any).helpfulCount ?? (Array.isArray((review as any).helpfulUsers) ? (review as any).helpfulUsers.length : 0);
+  const { helpfulUsers, ...rest } = review as any;
+
+  return {
+    ...rest,
+    helpfulCount,
+    isHelpful,
+  };
 };
 
 const updateReview = async (userData: AuthUserPayload, payload: Record<string, unknown>) => {

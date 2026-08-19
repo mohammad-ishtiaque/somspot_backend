@@ -1104,6 +1104,8 @@
         },
         "rating": 5,
         "review": "The hilib suqaar here is incredible!",
+        "helpfulCount": 12,
+        "isHelpful": true,
         "createdAt": "2026-08-10T05:47:01.451Z"
       }
     ]

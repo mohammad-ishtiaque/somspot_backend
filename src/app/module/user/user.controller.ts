@@ -55,6 +55,12 @@ const adminToggleBlock = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "User status updated", data: result });
 });
 
+const adminDeleteUser = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req.query.userId as string) || req.body?.userId;
+  const result = await UserService.adminDeleteUser({ userId });
+  sendResponse(res, { statusCode: 200, success: true, message: "User account deleted successfully", data: result });
+});
+
 
 const rateApp = catchAsync(async (req: Request, res: Response) => {
   if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
@@ -75,6 +81,7 @@ const UserController = {
   adminGetAllUsers,
   adminGetUser,
   adminToggleBlock,
+  adminDeleteUser,
   rateApp,
   changeLanguage,
 };

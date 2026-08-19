@@ -196,10 +196,11 @@
 
 ---
 
-### 2.2 Get User Details & Activity
+### 2.2 Get User Details (3 Tabs: Profile Info, Saved Businesses, Claimed Offers)
 - **Route**: `GET {{baseUrl}}/user/admin/details`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
 - **Query Filters**: `userId=6a7965d4f792519d4eada800`
+- **Description**: Returns complete user profile info along with tab 2 (`savedBusinesses`) and tab 3 (`claimedOffers`) arrays matching the Figma User Details screen tabs.
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -209,30 +210,60 @@
   "data": {
     "user": {
       "_id": "6a7965d4f792519d4eada800",
+      "name": "Ahmed Hassan",
+      "email": "ahmed@example.com",
+      "phoneNumber": "+252 61 123 4567",
+      "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png",
+      "address": "Mogadishu, Somalia",
+      "status": "active",
+      "createdAt": "2024-01-15T00:00:00.000Z",
       "authId": {
         "_id": "6a7965d4f792519d4eada7ff",
-        "email": "abdul.karim@example.com",
+        "email": "ahmed@example.com",
         "role": "USER",
         "isBlocked": false,
-        "isActive": true,
-        "phoneNumber": "+252612345678",
-        "createdAt": "2026-08-10T05:47:01.436Z"
-      },
-      "name": "Abdul Karim",
-      "email": "abdul.karim@example.com",
-      "address": "Maka Al Mukarama Road, Mogadishu"
+        "isActive": true
+      }
     },
     "savedBusinesses": [
       {
         "_id": "6a7965d5f792519d4eada80e",
+        "businessName": "Mogadishu Restaurant",
+        "category": "Restaurant",
+        "savedDate": "2024-05-01T00:00:00.000Z",
         "business": {
           "_id": "6a7965d5f792519d4eada806",
-          "name": "Hilib Macaan Restaurant",
-          "logo": "https://cdn.somspot.so/businesses/hilib_logo.png"
-        }
+          "name": "Mogadishu Restaurant",
+          "logo": "https://cdn.somspot.so/businesses/hilib_logo.png",
+          "category": {
+            "name": "Restaurant",
+            "slug": "restaurant"
+          }
+        },
+        "createdAt": "2024-05-01T00:00:00.000Z"
+      }
+    ],
+    "claimedOffers": [
+      {
+        "_id": "6a7965d5f792519d4eada808",
+        "offerTitle": "20% Off Pizza",
+        "businessName": "Mogadishu Restaurant",
+        "claimedDate": "2024-05-18T00:00:00.000Z",
+        "status": "redeemed",
+        "code": "SOM-84291",
+        "offer": {
+          "_id": "6a7965d5f792519d4eada809",
+          "title": "20% Off Pizza"
+        },
+        "business": {
+          "_id": "6a7965d5f792519d4eada806",
+          "name": "Mogadishu Restaurant"
+        },
+        "createdAt": "2024-05-18T00:00:00.000Z"
       }
     ],
     "activity": {
+      "savedCount": 3,
       "claimsCount": 3,
       "reviewsCount": 2
     }
@@ -262,6 +293,27 @@
   "data": {
     "userId": "6a7965d4f792519d4eada800",
     "isBlocked": true
+  }
+}
+```
+
+---
+
+### 2.4 Delete User Account (Newly Added)
+- **Route**: `DELETE {{baseUrl}}/user/admin/delete?userId=6a7965d4f792519d4eada800` OR `DELETE {{baseUrl}}/user/admin/delete`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Query Filter / Body Payload**: `userId=6a7965d4f792519d4eada800` OR `{ "userId": "6a7965d4f792519d4eada800" }`
+- **Description**: Permanently deletes a user account, auth credentials, and cleans up associated claims, saved entries, and reviews.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "User account deleted successfully",
+  "data": {
+    "userId": "6a7965d4f792519d4eada800",
+    "deleted": true
   }
 }
 ```

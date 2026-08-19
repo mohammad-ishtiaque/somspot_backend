@@ -208,7 +208,7 @@ const adminGetAllUsers = async (query: QueryParams) => {
   return { meta, result: enrichedResult };
 };
 
-// Admin "User Details & Activity".
+// Admin "User Details & Activity" matching Figma tabs: Profile Info, Saved Businesses, and Claimed Offers.
 const adminGetUser = async (query: { userId?: string }) => {
   validateFields(query, ["userId"]);
   const user = await User.findById(query.userId)
@@ -216,27 +216,61 @@ const adminGetUser = async (query: { userId?: string }) => {
     .lean();
   if (!user) throw new ApiError(status.NOT_FOUND, "User not found");
 
-  const [savedBusinesses, claimsCount, reviewsCount, savedCount] = await Promise.all([
+  const [savedBusinessesRaw, claimsRaw, reviewsCount] = await Promise.all([
     Saved.find({ user: query.userId })
-      .populate([{ path: "business", select: "name logo" }])
+      .populate([
+        {
+          path: "business",
+          select: "name logo category address",
+          populate: { path: "category", select: "name slug icon" },
+        },
+      ])
       .lean(),
-    Claim.countDocuments({ user: query.userId }),
+    Claim.find({ user: query.userId })
+      .populate([
+        { path: "offer", select: "title discountLabel status" },
+        { path: "business", select: "name logo" },
+      ])
+      .lean(),
     Review.countDocuments({ user: query.userId }),
-    Saved.countDocuments({ user: query.userId }),
   ]);
 
   const isBlocked = (user as any).authId?.isBlocked || false;
   const statusStr = isBlocked ? "blocked" : "active";
+  const phone = (user as any).phoneNumber || (user as any).authId?.phoneNumber || "";
+
+  const savedBusinesses = savedBusinessesRaw.map((s: any) => ({
+    _id: s._id,
+    businessName: s.business?.name || "N/A",
+    category: s.business?.category?.name || "General",
+    savedDate: s.createdAt,
+    business: s.business,
+    createdAt: s.createdAt,
+  }));
+
+  const claimedOffers = claimsRaw.map((c: any) => ({
+    _id: c._id,
+    offerTitle: c.offer?.title || "Special Offer",
+    businessName: c.business?.name || "Business",
+    claimedDate: c.createdAt,
+    status: c.status || "claimed",
+    code: c.code,
+    offer: c.offer,
+    business: c.business,
+    createdAt: c.createdAt,
+  }));
 
   return {
     user: {
       ...user,
+      phoneNumber: phone,
       status: statusStr,
     },
     savedBusinesses,
+    claimedOffers,
     activity: {
-      savedCount,
-      claimsCount,
+      savedCount: savedBusinesses.length,
+      claimsCount: claimedOffers.length,
       reviewsCount,
     },
   };
@@ -251,6 +285,27 @@ const adminToggleBlock = async (payload: { userId?: string; isBlocked?: boolean 
   const isBlocked = payload.isBlocked ?? true;
   await Auth.updateOne({ _id: user.authId }, { $set: { isBlocked } });
   return { userId: payload.userId, isBlocked };
+};
+
+// Admin delete user account.
+const adminDeleteUser = async (payload: { userId?: string }) => {
+  validateFields(payload, ["userId"]);
+  const user = await User.findById(payload.userId).lean();
+  if (!user) throw new ApiError(status.NOT_FOUND, "User not found");
+
+  if (user.profile_image) {
+    unlinkFile(user.profile_image);
+  }
+
+  await Promise.all([
+    Auth.deleteOne({ _id: user.authId }),
+    User.deleteOne({ _id: user._id }),
+    Saved.deleteMany({ user: user._id }),
+    Claim.deleteMany({ user: user._id }),
+    Review.deleteMany({ user: user._id }),
+  ]);
+
+  return { userId: payload.userId, deleted: true };
 };
 
 
@@ -285,6 +340,7 @@ const UserService = {
   adminGetAllUsers,
   adminGetUser,
   adminToggleBlock,
+  adminDeleteUser,
   rateApp,
   changeLanguage,
 };

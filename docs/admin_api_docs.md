@@ -322,10 +322,11 @@
 
 ## 3. Merchant Management
 
-### 3.1 Get Paginated Merchants List
+### 3.1 Get Paginated Merchants List (Matching Figma Table & Status Tabs)
 - **Route**: `GET {{baseUrl}}/merchant/admin/list`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
-- **Query Filters**: `page=1`, `limit=10`, `searchTerm=restaurant`
+- **Query Filters**: `page=1`, `limit=10`, `searchTerm=restaurant`, `status=pending` *(optional: pending | approved | rejected)*
+- **Description**: Returns merchant applications and business listings for the Merchants Management table. Supports filtering by tab status (`All Merchants`, `Approved`, `Pending`, `Rejected`).
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -333,31 +334,22 @@
   "success": true,
   "message": "Merchants retrieved",
   "data": {
-    "meta": { "page": 1, "limit": 10, "total": 1, "totalPage": 1 },
+    "meta": { "page": 1, "limit": 10, "total": 5, "totalPage": 1 },
     "result": [
       {
-        "_id": "6a7965d4f792519d4eada810",
-        "user": {
-          "_id": "6a7965d4f792519d4eada809",
-          "name": "Hassan Ali",
-          "email": "hassan.merchant@example.com"
-        },
-        "authId": {
-          "_id": "6a7965d4f792519d4eada808",
-          "isBlocked": false,
-          "isActive": true
-        },
-        "businessName": "Hilib Macaan Restaurant",
-        "business": {
-          "_id": "6a7965d5f792519d4eada806",
-          "status": "approved",
-          "logo": "https://cdn.somspot.so/businesses/hilib_logo.png"
-        },
-        "subscription": {
-          "plan": "premium",
-          "status": "active",
-          "endDate": "2026-12-31T23:59:59.000Z"
-        }
+        "_id": "6a7965d5f792519d4eada806",
+        "businessId": "6a7965d5f792519d4eada806",
+        "merchantId": "6a7965d4f792519d4eada809",
+        "businessName": "Mogadishu Restaurant",
+        "ownerName": "Ahmed Hassan",
+        "owner": "Ahmed Hassan",
+        "email": "ahmed@restaurant.com",
+        "phone": "+252 61 123 4567",
+        "submittedDate": "2024-05-15T00:00:00.000Z",
+        "submitted": "2024-05-15T00:00:00.000Z",
+        "status": "pending",
+        "category": "Restaurant",
+        "createdAt": "2024-05-15T00:00:00.000Z"
       }
     ]
   }
@@ -366,10 +358,11 @@
 
 ---
 
-### 3.2 Get Merchant Details & Businesses
+### 3.2 Get Merchant Details (Matching Figma Sections: Owner Info, Business Info, Subscription, Analytics)
 - **Route**: `GET {{baseUrl}}/merchant/admin/details`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
-- **Query Filters**: `merchantId=6a7965d4f792519d4eada810`
+- **Query Filters**: `businessId=6a7965d5f792519d4eada806` OR `merchantId=6a7965d4f792519d4eada809`
+- **Description**: Returns all detailed sections displayed on the Figma Merchant Details screen: Owner Information, Business Information, Subscription Status, and Analytics Summary.
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -377,26 +370,40 @@
   "success": true,
   "message": "Merchant retrieved",
   "data": {
-    "merchant": {
-      "_id": "6a7965d4f792519d4eada810",
-      "user": {
-        "name": "Hassan Ali",
-        "email": "hassan.merchant@example.com",
-        "phoneNumber": "+252615554433"
-      }
+    "_id": "6a7965d5f792519d4eada806",
+    "businessId": "6a7965d5f792519d4eada806",
+    "merchantId": "6a7965d4f792519d4eada809",
+    "businessName": "Mogadishu Restaurant",
+    "status": "pending",
+    "rejectionReason": null,
+    "ownerInformation": {
+      "ownerName": "Ahmed Hassan",
+      "email": "ahmed@restaurant.com",
+      "phone": "+252 61 123 4567",
+      "submittedDate": "2024-05-15T00:00:00.000Z",
+      "avatar": "https://cdn.somspot.so/profiles/ahmed_hassan.png"
     },
-    "businesses": [
-      {
-        "_id": "6a7965d5f792519d4eada806",
-        "name": "Hilib Macaan Restaurant",
-        "status": "approved",
-        "address": "Maka Al Mukarama Road, Mogadishu"
-      }
-    ],
-    "offersCount": 8,
-    "activeSubscription": {
-      "plan": "premium",
-      "status": "active"
+    "businessInformation": {
+      "businessName": "Mogadishu Restaurant",
+      "businessType": "Restaurant",
+      "category": "Restaurant",
+      "address": "KM4, Mogadishu, Somalia",
+      "subscriptionPlan": "Premium",
+      "description": "Traditional Somali cuisine restaurant offering authentic dishes in a modern setting.",
+      "logo": "https://cdn.somspot.so/businesses/mogadishu_rest.png",
+      "coverImage": null
+    },
+    "subscriptionStatus": {
+      "currentPlan": "Premium",
+      "status": "active",
+      "startDate": "2024-01-01T00:00:00.000Z",
+      "endDate": "2024-12-31T23:59:59.000Z"
+    },
+    "analyticsSummary": {
+      "totalListings": 1,
+      "activeOffers": 3,
+      "totalViews": 1234,
+      "offerClaims": 45
     }
   }
 }
@@ -411,7 +418,7 @@
 - **Body Payload**:
 ```json
 {
-  "merchantId": "6a7965d4f792519d4eada810",
+  "merchantId": "6a7965d4f792519d4eada809",
   "isBlocked": true
 }
 ```
@@ -422,8 +429,43 @@
   "success": true,
   "message": "Merchant status updated",
   "data": {
-    "merchantId": "6a7965d4f792519d4eada810",
+    "merchantId": "6a7965d4f792519d4eada809",
     "isBlocked": true
+  }
+}
+```
+
+---
+
+### 3.4 Approve or Reject Merchant Application
+- **Route**: `PATCH {{baseUrl}}/merchant/admin/verify` OR `PATCH {{baseUrl}}/business/verify`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload (Approve Application)**:
+```json
+{
+  "businessId": "6a7965d5f792519d4eada806",
+  "action": "approve"
+}
+```
+- **Body Payload (Reject Application)**:
+```json
+{
+  "businessId": "6a7965d5f792519d4eada806",
+  "action": "reject",
+  "rejectionReason": "Incomplete trade license documentation."
+}
+```
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Merchant application approved",
+  "data": {
+    "_id": "6a7965d5f792519d4eada806",
+    "name": "Mogadishu Restaurant",
+    "status": "approved"
   }
 }
 ```

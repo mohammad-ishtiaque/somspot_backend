@@ -181,47 +181,144 @@ const getOnboardingStatus = async (userData: AuthUserPayload, query: QueryParams
 
 // ---------------- Admin: merchant management ----------------
 
-// Admin "Merchants Management" list — merchant accounts + business/pending counts.
+// Admin "Merchants Management" list matching Figma table (All Merchants, Approved, Pending, Rejected tabs).
 const adminGetMerchants = async (query: QueryParams) => {
-  const auths = await Auth.find({ role: EnumUserRole.MERCHANT }).select("_id").lean();
-  const authIds = auths.map((a) => a._id);
+  const { status: statusFilter, ...listQuery } = query;
 
-  const { meta, result: merchants } = await new QueryBuilder(
-    User.find({ authId: { $in: authIds } })
-      .populate([{ path: "authId", select: "isBlocked isActive email phoneNumber" }])
+  const base: Record<string, unknown> = {};
+
+  if (statusFilter && ["pending", "approved", "rejected"].includes(String(statusFilter).toLowerCase())) {
+    base.status = String(statusFilter).toLowerCase();
+  }
+
+  const { meta, result: businesses } = await new QueryBuilder(
+    Business.find(base)
+      .populate([
+        {
+          path: "owner",
+          select: "name email phoneNumber profile_image authId",
+          populate: { path: "authId", select: "email phoneNumber isBlocked" },
+        },
+        { path: "category", select: "name slug" },
+      ])
       .lean(),
-    query,
-  ).execute(["name", "email"]);
+    listQuery as QueryParams,
+  ).execute(["name"]);
 
-  // Attach quick counts per merchant.
-  const withCounts = await Promise.all(
-    merchants.map(async (m: any) => {
-      const [businessCount, pendingCount] = await Promise.all([
-        Business.countDocuments({ owner: m._id }),
-        Business.countDocuments({ owner: m._id, status: EnumBusinessStatus.PENDING }),
-      ]);
-      return { ...m, businessCount, pendingCount };
-    }),
-  );
+  const enrichedResult = businesses.map((b: any) => {
+    const owner = b.owner || {};
+    const auth = owner.authId || {};
 
-  return { meta, result: withCounts };
+    return {
+      _id: b._id,
+      businessId: b._id,
+      merchantId: owner._id,
+      businessName: b.name || "N/A",
+      ownerName: owner.name || "N/A",
+      owner: owner.name || "N/A",
+      email: owner.email || auth.email || "",
+      phone: owner.phoneNumber || auth.phoneNumber || b.phone || "",
+      submittedDate: b.createdAt,
+      submitted: b.createdAt,
+      status: b.status || "pending",
+      category: (b.category as any)?.name || "General",
+      createdAt: b.createdAt,
+    };
+  });
+
+  return { meta, result: enrichedResult };
 };
 
-// Admin "Merchant Details" — profile, businesses, subscription, campaigns.
-const adminGetMerchant = async (query: { merchantId?: string }) => {
-  validateFields(query, ["merchantId"]);
-  const merchant = await User.findById(query.merchantId)
-    .populate([{ path: "authId", select: "isBlocked isActive email phoneNumber createdAt" }])
-    .lean();
-  if (!merchant) throw new ApiError(status.NOT_FOUND, "Merchant not found");
+// Admin "Merchant Details" matching Figma Merchant Details sections (Owner Info, Business Info, Subscription Status, Analytics Summary).
+const adminGetMerchant = async (query: { merchantId?: string; businessId?: string; id?: string }) => {
+  const targetId = query.businessId || query.merchantId || query.id;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "merchantId or businessId is required");
 
-  const [businesses, subscription, campaigns] = await Promise.all([
-    Business.find({ owner: query.merchantId }).lean(),
-    Subscription.findOne({ merchant: query.merchantId }).lean(),
-    Campaign.find({ merchant: query.merchantId }).select("name status videoLengthSec approvedCount").lean(),
+  let business = await Business.findById(targetId)
+    .populate([
+      {
+        path: "owner",
+        select: "name email phoneNumber profile_image authId createdAt",
+        populate: { path: "authId", select: "email phoneNumber isBlocked" },
+      },
+      { path: "category", select: "name slug" },
+    ])
+    .lean();
+
+  if (!business) {
+    business = await Business.findOne({ owner: targetId })
+      .populate([
+        {
+          path: "owner",
+          select: "name email phoneNumber profile_image authId createdAt",
+          populate: { path: "authId", select: "email phoneNumber isBlocked" },
+        },
+        { path: "category", select: "name slug" },
+      ])
+      .lean();
+  }
+
+  if (!business) throw new ApiError(status.NOT_FOUND, "Merchant/Business not found");
+
+  const ownerObj: any = business.owner || {};
+  const authObj: any = ownerObj.authId || {};
+
+  const [totalListings, activeOffersCount, claimsCount, viewsAgg, subscription] = await Promise.all([
+    Business.countDocuments({ owner: ownerObj._id || targetId }),
+    Offer.countDocuments({ business: business._id, status: EnumOfferStatus.ACTIVE }),
+    Claim.countDocuments({ business: business._id }),
+    BusinessView.countDocuments({ business: business._id }),
+    Subscription.findOne({ merchant: ownerObj._id || targetId }).lean(),
   ]);
 
-  return { merchant, businesses, subscription, campaigns };
+  const planName = (subscription as any)?.plan || "Premium";
+  const subStatus = (subscription as any)?.status || "active";
+
+  return {
+    _id: business._id,
+    businessId: business._id,
+    merchantId: ownerObj._id,
+    businessName: business.name,
+    status: business.status || "pending",
+    rejectionReason: business.rejectionReason || null,
+
+    ownerInformation: {
+      ownerName: ownerObj.name || "N/A",
+      email: ownerObj.email || authObj.email || "",
+      phone: ownerObj.phoneNumber || authObj.phoneNumber || business.phone || "",
+      submittedDate: business.createdAt,
+      avatar: ownerObj.profile_image || null,
+    },
+
+    businessInformation: {
+      businessName: business.name,
+      businessType: (business.category as any)?.name || "Restaurant",
+      category: (business.category as any)?.name || "Restaurant",
+      address: business.address || "",
+      subscriptionPlan: planName,
+      description: business.description || "",
+      logo: business.logo || null,
+      coverImage: business.coverImage || null,
+    },
+
+    subscriptionStatus: {
+      currentPlan: planName,
+      status: subStatus,
+      startDate: (subscription as any)?.startDate || null,
+      endDate: (subscription as any)?.endDate || null,
+    },
+
+    analyticsSummary: {
+      totalListings,
+      activeOffers: activeOffersCount,
+      totalViews: viewsAgg || 0,
+      offerClaims: claimsCount,
+    },
+
+    merchant: ownerObj,
+    business,
+    subscription,
+  };
 };
 
 const adminToggleBlockMerchant = async (payload: { merchantId?: string; isBlocked?: boolean }) => {
@@ -233,6 +330,31 @@ const adminToggleBlockMerchant = async (payload: { merchantId?: string; isBlocke
   return { merchantId: payload.merchantId, isBlocked };
 };
 
+const adminVerifyMerchant = async (payload: { merchantId?: string; businessId?: string; action?: string; rejectionReason?: string }) => {
+  validateFields(payload, ["action"]);
+  const targetId = payload.businessId || payload.merchantId;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "businessId or merchantId is required");
+
+  let business = await Business.findById(targetId);
+  if (!business) {
+    business = await Business.findOne({ owner: targetId });
+  }
+  if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
+
+  if (payload.action === "approve") {
+    business.status = EnumBusinessStatus.APPROVED;
+    business.rejectionReason = undefined;
+  } else if (payload.action === "reject") {
+    business.status = EnumBusinessStatus.REJECTED;
+    business.rejectionReason = payload.rejectionReason || "Application rejected by admin";
+  } else {
+    throw new ApiError(status.BAD_REQUEST, "action must be approve or reject");
+  }
+
+  await business.save();
+  return business;
+};
+
 const MerchantService = {
   getDashboard,
   getAnalytics,
@@ -240,6 +362,7 @@ const MerchantService = {
   adminGetMerchants,
   adminGetMerchant,
   adminToggleBlockMerchant,
+  adminVerifyMerchant,
 };
 
 export { MerchantService };

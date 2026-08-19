@@ -38,6 +38,11 @@ const adminToggleBlockMerchant = catchAsync(async (req: Request, res: Response) 
   sendResponse(res, { statusCode: 200, success: true, message: "Merchant status updated", data: result });
 });
 
+const adminVerifyMerchant = catchAsync(async (req: Request, res: Response) => {
+  const result = await MerchantService.adminVerifyMerchant(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: `Merchant application ${result.status}`, data: result });
+});
+
 const MerchantController = {
   getDashboard,
   getAnalytics,
@@ -45,6 +50,7 @@ const MerchantController = {
   adminGetMerchants,
   adminGetMerchant,
   adminToggleBlockMerchant,
+  adminVerifyMerchant,
 };
 
 export { MerchantController };

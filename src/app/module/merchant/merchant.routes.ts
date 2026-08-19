@@ -12,6 +12,7 @@ router
   // ---- admin ----
   .get("/admin/list", auth(config.auth_level.admin), MerchantController.adminGetMerchants)
   .get("/admin/details", auth(config.auth_level.admin), MerchantController.adminGetMerchant)
-  .patch("/admin/block", auth(config.auth_level.admin), MerchantController.adminToggleBlockMerchant);
+  .patch("/admin/block", auth(config.auth_level.admin), MerchantController.adminToggleBlockMerchant)
+  .patch("/admin/verify", auth(config.auth_level.admin), MerchantController.adminVerifyMerchant);
 
 export = router;

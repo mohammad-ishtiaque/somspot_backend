@@ -4,6 +4,8 @@ import { uploadFile } from "../../middleware/fileUploader";
 import { UserController } from "./user.controller";
 import config from "../../../config";
 
+import { CreatorController } from "../creator/creator.controller";
+
 const router = express.Router();
 
 router
@@ -16,6 +18,7 @@ router
   )
   .patch("/change-language", auth(config.auth_level.user), UserController.changeLanguage)
   .post("/rate-app", auth(config.auth_level.user), UserController.rateApp)
+  .get("/trending-influencers", CreatorController.getTrendingCreators)
   .delete(
     "/delete-account",
     auth(config.auth_level.user),

@@ -83,7 +83,7 @@ const processPayout = catchAsync(async (req: Request, res: Response) => {
 
 
 const getBusinessContent = catchAsync(async (req: Request, res: Response) => {
-  const result = await CreatorService.getBusinessContent(req.query);
+  const result = await CreatorService.getBusinessContent(req.query as QueryParams);
   sendResponse(res, { statusCode: 200, success: true, message: "Creator content retrieved", data: result });
 });
 

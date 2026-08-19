@@ -570,24 +570,38 @@ const getAssignedCreatorProfile = async (userData: AuthUserPayload, query: { use
 };
 
 // Public: published creator content for a business (consumer "Creator" tab on
-// the business-detail screen) OR all businesses (consumer home screen feed).
-const getBusinessContent = async (query: { businessId?: string }) => {
-  const filter: Record<string, unknown> = { status: EnumTaskStatus.PUBLISHED };
+// the business-detail screen) OR all businesses (consumer home screen feed). Supports page & limit pagination.
+const getBusinessContent = async (query: QueryParams) => {
+  const filter: Record<string, unknown> = {};
+
   if (query.businessId) {
     const campaigns = await Campaign.find({ business: query.businessId }).select("_id").lean();
     filter.campaign = { $in: campaigns.map((c) => c._id) };
   }
 
-  const content = await CampaignApplication.find(filter)
-    .populate([
-      { path: "creator", select: "name profile_image" },
-      { path: "campaign", select: "name business", populate: { path: "business", select: "name logo" } },
-    ])
-    .select("postUrl creator campaign publishedAt thumbnail caption platform draftVideoUrl")
-    .sort({ publishedAt: -1 })
-    .lean();
+  if (query.status) {
+    filter.status = query.status;
+  } else {
+    // If status is not explicitly passed, return published content or content with video/post submission
+    filter.$or = [
+      { status: EnumTaskStatus.PUBLISHED },
+      { draftVideoUrl: { $exists: true, $ne: "" } },
+      { postUrl: { $exists: true, $ne: "" } },
+    ];
+  }
 
-  return content;
+  const { meta, result } = await new QueryBuilder(
+    CampaignApplication.find(filter)
+      .populate([
+        { path: "creator", select: "name profile_image" },
+        { path: "campaign", select: "name business", populate: { path: "business", select: "name logo category" } },
+      ])
+      .select("postUrl creator campaign publishedAt thumbnail caption platform draftVideoUrl status createdAt")
+      .lean(),
+    query,
+  ).execute([]);
+
+  return { meta, result };
 };
 
 // Public: trending creators/influencers for the consumer home page. Supports page/limit pagination & meta.
@@ -605,7 +619,14 @@ const getTrendingCreators = async (query: QueryParams) => {
     queryCopy,
   ).execute([]);
 
-  return { meta, result };
+  const sanitizedResult = result.map((c: any) => ({
+    ...c,
+    category: c.category
+      ? { ...c.category, icon: c.category.icon || "" }
+      : null,
+  }));
+
+  return { meta, result: sanitizedResult };
 };
 
 const CreatorService = {

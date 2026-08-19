@@ -505,9 +505,10 @@
 ---
 
 ### 3.2 Trending Influencers / Creators Carousel (with Meta & Pagination)
-- **Route**: `GET {{baseUrl}}/creator/trending?page=1&limit=10`
+- **Route**: `GET {{baseUrl}}/creator/trending?page=1&limit=10` OR `GET {{baseUrl}}/user/trending-influencers?page=1&limit=10`
 - **Auth**: Public
-- **Query Filters**: `page=1`, `limit=10`, `sort=-followerCount`
+- **Query Filters**: `page=1`, `limit=10`, `sort=-followerCount` *(optional)*
+- **Description**: Returns top influencers/creators ranked by follower count and engagement rate for the Customer Home Screen carousel.
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -542,40 +543,45 @@
 ---
 
 ### 3.3 Recommended Content (Short Videos / Reels Feed)
-- **Route**: `GET {{baseUrl}}/creator/content`
+- **Route**: `GET {{baseUrl}}/creator/content?page=1&limit=10`
 - **Auth**: Public
-- **Query Filters**: None (Returns global reel feed across all businesses for published creator content)
+- **Query Filters**: `page=1`, `limit=10`, `businessId` *(optional)*, `status` *(optional)*
+- **Description**: Returns video/reel content across all businesses (or filtered by business/status) with paginated `meta` & `result` format.
 - **Success Response (`200 OK`)**:
 ```json
 {
   "statusCode": 200,
   "success": true,
   "message": "Creator content retrieved",
-  "data": [
-    {
-      "_id": "6a7965d5f792519d4eada80c",
-      "campaign": {
-        "_id": "6a7965d5f792519d4eada80b",
-        "business": {
-          "_id": "6a7965d5f792519d4eada806",
-          "name": "Hilib Macaan Restaurant",
-          "logo": "https://cdn.somspot.so/businesses/hilib_logo.png"
+  "data": {
+    "meta": { "page": 1, "limit": 10, "total": 1, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada80c",
+        "campaign": {
+          "_id": "6a7965d5f792519d4eada80b",
+          "business": {
+            "_id": "6a7965d5f792519d4eada806",
+            "name": "Hilib Macaan Restaurant",
+            "logo": "https://cdn.somspot.so/businesses/hilib_logo.png"
+          },
+          "name": "Summer Food Campaign"
         },
-        "name": "Summer Food Campaign"
-      },
-      "creator": {
-        "_id": "6a7965d5f792519d4eada804",
-        "name": "Ahmed Hassan",
-        "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png"
-      },
-      "platform": "tiktok",
-      "draftVideoUrl": "https://cdn.somspot.so/videos/pizza_short.mp4",
-      "thumbnail": "https://cdn.somspot.so/thumbnails/pizza_short.jpg",
-      "caption": "Best Pizza in Mogadishu! 🍕 Buy 1 Get 1 Free through SomSpot",
-      "postUrl": "https://www.tiktok.com/@ahmedeats/video/7192837491",
-      "publishedAt": "2026-08-10T05:47:01.450Z"
-    }
-  ]
+        "creator": {
+          "_id": "6a7965d5f792519d4eada804",
+          "name": "Ahmed Hassan",
+          "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png"
+        },
+        "platform": "tiktok",
+        "draftVideoUrl": "https://cdn.somspot.so/videos/pizza_short.mp4",
+        "thumbnail": "https://cdn.somspot.so/thumbnails/pizza_short.jpg",
+        "caption": "Best Pizza in Mogadishu! 🍕 Buy 1 Get 1 Free through SomSpot",
+        "postUrl": "https://www.tiktok.com/@ahmedeats/video/7192837491",
+        "status": "published",
+        "publishedAt": "2026-08-10T05:47:01.450Z"
+      }
+    ]
+  }
 }
 ```
 

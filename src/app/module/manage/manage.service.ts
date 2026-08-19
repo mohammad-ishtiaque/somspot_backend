@@ -5,6 +5,8 @@ import {
   AboutUs,
   FAQ,
   ContactUs,
+} from "./Manage";
+import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 
 const getFaq = async (query: QueryParams) => {

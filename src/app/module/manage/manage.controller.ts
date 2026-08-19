@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import catchAsync from "../../../util/catchAsync";
 import sendResponse from "../../../util/sendResponse";
 import { ManageService } from "./manage.service";
+import { QueryParams } from "../../../builder/queryBuilder";
 
 const resolveUpsertResult = (result: any) => ({
   message: result?.message ?? "Successful",
@@ -97,8 +98,6 @@ const addFaq = catchAsync(async (req: Request, res: Response) => {
   const { message, data } = resolveUpsertResult(result);
   sendResponse(res, { statusCode: 200, success: true, message, data });
 });
-
-import { QueryParams } from "../../../builder/queryBuilder";
 
 const getFaq = catchAsync(async (req: Request, res: Response) => {
   const data = await ManageService.getFaq(req.query as QueryParams);

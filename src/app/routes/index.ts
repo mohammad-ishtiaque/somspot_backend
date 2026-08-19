@@ -19,6 +19,7 @@ import CampaignRoutes from "../module/campaign/campaign.routes";
 import CreatorRoutes from "../module/creator/creator.routes";
 import PaymentRoutes from "../module/payment/payment.routes";
 import SettingRoutes from "../module/setting/setting.routes";
+import PackageRoutes from "../module/package/package.routes";
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ const moduleRoutes = [
   { path: "/campaign", route: CampaignRoutes },
   // ---- SomSpot: creator ----
   { path: "/creator", route: CreatorRoutes },
+  { path: "/package", route: PackageRoutes },
   // ---- SomSpot: admin/platform ----
   { path: "/payment", route: PaymentRoutes },
   { path: "/setting", route: SettingRoutes },

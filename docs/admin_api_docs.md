@@ -472,12 +472,13 @@
 
 ---
 
-## 4. Creator / Influencer Management
+## 4. Creator / Influencer Management & Pricing Packages
 
-### 4.1 Get Paginated Creators List
+### 4.1 Get Paginated Influencers List (Matching Figma Table & Summary Stat Cards)
 - **Route**: `GET {{baseUrl}}/creator/admin/list`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
-- **Query Filters**: `page=1`, `limit=10`, `searchTerm=ahmed`, `category=6a7965d4f792519d4eada7fe` *(optional)*
+- **Query Filters**: `page=1`, `limit=10`, `searchTerm=amina`, `status=approved` *(optional: pending | approved | blocked)*
+- **Description**: Returns all influencers for the Influencers Management screen. Includes top metric summary cards (`totalInfluencers`, `totalContentCreated`, `approvedContent`, `rejectedContent`) and filters by status tab (`All`, `Pending Verification`, `Approved`, `Blocked`).
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -485,30 +486,28 @@
   "success": true,
   "message": "Creators retrieved",
   "data": {
-    "meta": { "page": 1, "limit": 10, "total": 1, "totalPage": 1 },
+    "summary": {
+      "totalInfluencers": 7,
+      "totalContentCreated": 65,
+      "approvedContent": 55,
+      "rejectedContent": 7
+    },
+    "meta": { "page": 1, "limit": 10, "total": 7, "totalPage": 1 },
     "result": [
       {
         "_id": "6a7965d5f792519d4eada805",
-        "user": {
-          "_id": "6a7965d5f792519d4eada804",
-          "name": "Ahmed Hassan",
-          "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png",
-          "email": "ahmed.creator@example.com"
-        },
-        "category": {
-          "_id": "6a7965d4f792519d4eada7fe",
-          "name": "Food Creator",
-          "slug": "food-creator"
-        },
-        "bio": "Mogadishu's top food reviewer & creator",
+        "creatorId": "6a7965d5f792519d4eada805",
+        "userId": "6a7965d5f792519d4eada804",
+        "name": "Amina Warsame",
+        "profile_image": "https://cdn.somspot.so/profiles/amina_warsame.png",
+        "category": "Fashion",
+        "totalContent": 14,
+        "approved": 11,
+        "rejected": 2,
+        "totalEarnings": 1240,
+        "status": "approved",
         "followerCount": 50000,
-        "engagementRate": 8.5,
-        "socials": [
-          { "platform": "tiktok", "handle": "@ahmedeats", "followers": 35000 }
-        ],
-        "activeCount": 2,
-        "pendingCount": 1,
-        "doneCount": 5
+        "engagementRate": 8.5
       }
     ]
   }
@@ -517,7 +516,7 @@
 
 ---
 
-### 4.2 Get Creator Profile Details & Activity
+### 4.2 Get Creator Profile Details
 - **Route**: `GET {{baseUrl}}/creator/admin/get`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
 - **Query Filters**: `userId=6a7965d5f792519d4eada804`
@@ -531,20 +530,218 @@
     "_id": "6a7965d5f792519d4eada805",
     "user": {
       "_id": "6a7965d5f792519d4eada804",
-      "name": "Ahmed Hassan",
-      "email": "ahmed.creator@example.com",
-      "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png"
+      "name": "Amina Warsame",
+      "email": "amina.creator@example.com",
+      "profile_image": "https://cdn.somspot.so/profiles/amina_warsame.png"
     },
     "category": {
-      "name": "Food Creator",
-      "slug": "food-creator"
+      "name": "Fashion",
+      "slug": "fashion"
     },
-    "bio": "Mogadishu's top food reviewer & creator",
+    "bio": "Somalia's leading fashion influencer & content creator",
     "followerCount": 50000,
     "engagementRate": 8.5,
     "activeCount": 2,
     "pendingCount": 1,
-    "doneCount": 5
+    "doneCount": 11
+  }
+}
+```
+
+---
+
+### 4.3 Approve / Verify Creator Profile
+- **Route**: `PATCH {{baseUrl}}/creator/admin/verify`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload**:
+```json
+{
+  "userId": "6a7965d5f792519d4eada804",
+  "action": "approve"
+}
+```
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Creator profile approved",
+  "data": {
+    "userId": "6a7965d5f792519d4eada804",
+    "status": "approved"
+  }
+}
+```
+
+---
+
+### 4.4 Block / Unblock Influencer Account
+- **Route**: `PATCH {{baseUrl}}/creator/admin/block`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload**:
+```json
+{
+  "userId": "6a7965d5f792519d4eada804",
+  "isBlocked": true
+}
+```
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Creator status updated",
+  "data": {
+    "userId": "6a7965d5f792519d4eada804",
+    "isBlocked": true
+  }
+}
+```
+
+---
+
+### 4.5 Delete Creator Account
+- **Route**: `DELETE {{baseUrl}}/creator/admin/delete?userId=6a7965d5f792519d4eada804` OR `DELETE {{baseUrl}}/creator/admin/delete`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Query Filter / Body Payload**: `userId=6a7965d5f792519d4eada804`
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Creator profile deleted successfully",
+  "data": {
+    "userId": "6a7965d5f792519d4eada804",
+    "deleted": true
+  }
+}
+```
+
+---
+
+### 4.6 Get Pricing Packages List (Tab 2: Pricing Packages & Stat Cards)
+- **Route**: `GET {{baseUrl}}/package/admin/list` OR `GET {{baseUrl}}/package/get-all`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Query Filters**: `page=1`, `limit=10`, `status=active` *(optional: active | inactive)*, `searchTerm=fashion` *(optional)*
+- **Description**: Returns all influencer pricing packages for Tab 2 (`Pricing Packages`). Includes top metric stat cards (`totalPackages`, `active`, `inactive`, `contentTypes`).
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Packages retrieved",
+  "data": {
+    "summary": {
+      "totalPackages": 7,
+      "active": 6,
+      "inactive": 1,
+      "contentTypes": 4
+    },
+    "meta": { "page": 1, "limit": 10, "total": 7, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada820",
+        "packageId": "6a7965d5f792519d4eada820",
+        "packageName": "Fashion Short Clip",
+        "contentType": "Video",
+        "duration": "15 Seconds",
+        "category": "Fashion",
+        "price": 3,
+        "currency": "USD",
+        "status": "active",
+        "lastUpdated": "2024-05-18T00:00:00.000Z",
+        "createdAt": "2024-05-18T00:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4.7 Create Pricing Package
+- **Route**: `POST {{baseUrl}}/package/create`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload**:
+```json
+{
+  "packageName": "Fashion Short Clip",
+  "contentType": "Video",
+  "duration": "15 Seconds",
+  "category": "6a7965d4f792519d4eada7fe",
+  "price": 3,
+  "currency": "USD",
+  "status": "active"
+}
+```
+- **Success Response (`201 Created`)**:
+```json
+{
+  "statusCode": 201,
+  "success": true,
+  "message": "Pricing package created successfully",
+  "data": {
+    "_id": "6a7965d5f792519d4eada820",
+    "packageName": "Fashion Short Clip",
+    "contentType": "Video",
+    "duration": "15 Seconds",
+    "price": 3,
+    "currency": "USD",
+    "status": "active"
+  }
+}
+```
+
+---
+
+### 4.8 Update Pricing Package
+- **Route**: `PATCH {{baseUrl}}/package/update`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload**:
+```json
+{
+  "packageId": "6a7965d5f792519d4eada820",
+  "packageName": "Fashion Short Clip Premium",
+  "price": 5,
+  "status": "active"
+}
+```
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Pricing package updated successfully",
+  "data": {
+    "_id": "6a7965d5f792519d4eada820",
+    "packageName": "Fashion Short Clip Premium",
+    "price": 5,
+    "status": "active"
+  }
+}
+```
+
+---
+
+### 4.9 Delete Pricing Package
+- **Route**: `DELETE {{baseUrl}}/package/delete?packageId=6a7965d5f792519d4eada820` OR `DELETE {{baseUrl}}/package/delete`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Query Filter / Body Payload**: `packageId=6a7965d5f792519d4eada820`
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Pricing package deleted successfully",
+  "data": {
+    "packageId": "6a7965d5f792519d4eada820",
+    "deleted": true
   }
 }
 ```

@@ -97,6 +97,22 @@ const adminGetCreatorProfile = catchAsync(async (req: Request, res: Response) =>
   sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
 });
 
+const adminVerifyCreator = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminVerifyCreator(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: `Creator profile ${result.status}`, data: result });
+});
+
+const adminToggleBlockCreator = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminToggleBlockCreator(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator status updated", data: result });
+});
+
+const adminDeleteCreator = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req.query.userId as string) || req.body?.userId || req.body?.creatorId;
+  const result = await CreatorService.adminDeleteCreator({ userId });
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator profile deleted successfully", data: result });
+});
+
 const getAssignedCreatorProfile = catchAsync(async (req: Request, res: Response) => {
   const result = await CreatorService.getAssignedCreatorProfile(getAuthUser(req), req.query);
   sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
@@ -125,6 +141,9 @@ const CreatorController = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  adminVerifyCreator,
+  adminToggleBlockCreator,
+  adminDeleteCreator,
   getAssignedCreatorProfile,
 };
 

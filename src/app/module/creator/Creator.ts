@@ -15,6 +15,7 @@ export interface ICreator {
   category?: Types.ObjectId; // ref Category (type: creator) — self-reported niche (Figma: "Food Creator")
   followerCount: number; // self-reported — no social API integration to verify this
   engagementRate: number; // self-reported percentage
+  status?: "pending" | "approved" | "rejected";
   socials: ISocialAccount[];
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ const creatorSchema = new Schema<ICreator>(
     category: { type: Schema.Types.ObjectId, ref: "Category" },
     followerCount: { type: Number, default: 0 },
     engagementRate: { type: Number, default: 0 },
+    status: { type: String, enum: ["pending", "approved", "rejected"], default: "approved" },
     socials: { type: [socialSchema], default: [] },
   },
   { timestamps: true },

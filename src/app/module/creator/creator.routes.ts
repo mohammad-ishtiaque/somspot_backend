@@ -27,9 +27,12 @@ router
   .post("/payout/request", auth(config.auth_level.creator), CreatorController.requestPayout)
   .get("/payout/list", auth(config.auth_level.creator), CreatorController.getPayouts)
   .patch("/payout/process", auth(config.auth_level.admin), CreatorController.processPayout)
-  // admin — creator discovery for assigning to a campaign
+  // admin — creator discovery & management for Influencers screen
   .get("/admin/list", auth(config.auth_level.admin), CreatorController.adminListCreators)
   .get("/admin/get", auth(config.auth_level.admin), CreatorController.adminGetCreatorProfile)
+  .patch("/admin/verify", auth(config.auth_level.admin), CreatorController.adminVerifyCreator)
+  .patch("/admin/block", auth(config.auth_level.admin), CreatorController.adminToggleBlockCreator)
+  .delete("/admin/delete", auth(config.auth_level.admin), CreatorController.adminDeleteCreator)
   // merchant — "View Profile" on the Influencers tab, scoped to creators assigned to their own campaigns
   .get("/merchant/get", auth(config.auth_level.merchant), CreatorController.getAssignedCreatorProfile);
 

@@ -4,12 +4,14 @@ import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
 import { isPrivileged } from "../../../util/authz";
+import unlinkFile from "../../../util/unlinkFile";
 import {
   EnumCampaignStatus,
   EnumCategoryType,
   EnumContentMediaType,
   EnumPayoutStatus,
   EnumTaskStatus,
+  EnumUserRole,
 } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Creator from "./Creator";
@@ -17,6 +19,7 @@ import Campaign from "../campaign/Campaign";
 import CampaignApplication from "./CampaignApplication";
 import Category from "../category/Category";
 import User from "../user/User";
+import Auth from "../auth/Auth";
 import Earning from "./Earning";
 import Payout from "./Payout";
 import Claim from "../claim/Claim";
@@ -477,33 +480,158 @@ const processPayout = async (payload: { payoutId?: string; action?: string }) =>
 
 // ---------------- Admin: creator discovery ----------------
 
-// Admin browses/searches creators to assign to a campaign (Figma: Assign
-// Influencers > Eligible Influencers — name, category, Active/Pending/Done).
-// `searchTerm` matches the creator's name, which lives on User, not Creator,
-// so it's resolved to a set of user ids before the main query rather than
-// going through QueryBuilder's own field-based search.
+// Admin browses/searches creators for Influencers Management table (Figma: All Influencers, Pending Verification, Approved, Blocked tabs + Stat Cards).
 const adminListCreators = async (query: QueryParams) => {
+  const { status: statusFilter, category, searchTerm, ...listQuery } = query;
+
   const base: Record<string, unknown> = {};
-  if (query.category) base.category = query.category;
-  if (query.searchTerm) {
-    const matchingUsers = await User.find({ name: { $regex: query.searchTerm, $options: "i" } })
+  if (category) base.category = category;
+
+  if (searchTerm) {
+    const matchingUsers = await User.find({ name: { $regex: searchTerm, $options: "i" } })
       .select("_id")
       .lean();
     base.user = { $in: matchingUsers.map((u) => u._id) };
   }
 
+  if (statusFilter) {
+    const s = String(statusFilter).toLowerCase();
+    if (s === "blocked") {
+      const blockedAuths = await Auth.find({ role: EnumUserRole.CREATOR, isBlocked: true }).select("_id").lean();
+      const blockedUsers = await User.find({ authId: { $in: blockedAuths.map((a) => a._id) } }).select("_id").lean();
+      base.user = { $in: blockedUsers.map((u) => u._id) };
+    } else if (s === "approved" || s === "active") {
+      const approvedAuths = await Auth.find({ role: EnumUserRole.CREATOR, isBlocked: false }).select("_id").lean();
+      const approvedUsers = await User.find({ authId: { $in: approvedAuths.map((a) => a._id) } }).select("_id").lean();
+      base.user = { $in: approvedUsers.map((u) => u._id) };
+    } else if (s === "pending") {
+      base.status = "pending";
+    }
+  }
+
+  const [totalInfluencers, totalContentCreated, approvedContent, rejectedContent] = await Promise.all([
+    Creator.countDocuments({}),
+    CampaignApplication.countDocuments({}),
+    CampaignApplication.countDocuments({ status: EnumTaskStatus.PUBLISHED }),
+    CampaignApplication.countDocuments({ status: "rejected" }),
+  ]);
+
+  const summaryCards = {
+    totalInfluencers,
+    totalContentCreated,
+    approvedContent,
+    rejectedContent,
+  };
+
   const { meta, result } = await new QueryBuilder(
     Creator.find(base)
       .populate([
-        { path: "user", select: "name profile_image email" },
+        {
+          path: "user",
+          select: "name profile_image email authId",
+          populate: { path: "authId", select: "isBlocked isActive email" },
+        },
         { path: "category", select: "name slug icon" },
       ])
       .lean(),
-    query,
+    listQuery as QueryParams,
   ).execute([]);
 
-  const enriched = await Promise.all(result.map((c: any) => attachTaskCounts(c)));
-  return { meta, result: enriched };
+  const enrichedResult = await Promise.all(
+    result.map(async (c: any) => {
+      const userId = c.user?._id;
+      const [applications, earningsAgg] = await Promise.all([
+        CampaignApplication.find({ creator: userId }).select("status").lean(),
+        Earning.aggregate([
+          { $match: { creator: userId } },
+          { $group: { _id: null, total: { $sum: "$amount" } } },
+        ]),
+      ]);
+
+      const totalContent = applications.length;
+      let approved = 0;
+      let rejected = 0;
+      for (const app of applications as any[]) {
+        if (app.status === EnumTaskStatus.PUBLISHED) approved++;
+        else if (app.status === "rejected") rejected++;
+      }
+
+      const totalEarnings = earningsAgg[0]?.total || 0;
+      const isBlocked = c.user?.authId?.isBlocked || false;
+      const creatorStatus = isBlocked ? "blocked" : (c.status || "approved");
+
+      return {
+        _id: c._id,
+        creatorId: c._id,
+        userId: userId,
+        name: c.user?.name || "N/A",
+        profile_image: c.user?.profile_image || null,
+        category: (c.category as any)?.name || "General",
+        totalContent,
+        approved,
+        rejected,
+        totalEarnings,
+        status: creatorStatus,
+        followerCount: c.followerCount || 0,
+        engagementRate: c.engagementRate || 0,
+        bio: c.bio || "",
+        socials: c.socials || [],
+        user: c.user,
+      };
+    }),
+  );
+
+  return { summary: summaryCards, meta, result: enrichedResult };
+};
+
+const adminVerifyCreator = async (payload: { userId?: string; creatorId?: string; action?: string; status?: string }) => {
+  const targetId = payload.userId || payload.creatorId;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "userId or creatorId is required");
+
+  let creator = await Creator.findOne({ user: targetId });
+  if (!creator) creator = await Creator.findById(targetId);
+  if (!creator) throw new ApiError(status.NOT_FOUND, "Creator not found");
+
+  const requestedAction = payload.action || payload.status;
+  const newStatus = requestedAction === "approve" || requestedAction === "approved" ? "approved" : "rejected";
+  creator.status = newStatus;
+  await creator.save();
+  return { userId: creator.user, status: newStatus };
+};
+
+const adminToggleBlockCreator = async (payload: { userId?: string; creatorId?: string; isBlocked?: boolean }) => {
+  const targetId = payload.userId || payload.creatorId;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "userId or creatorId is required");
+
+  let creator = await Creator.findOne({ user: targetId });
+  if (!creator) creator = await Creator.findById(targetId);
+  if (!creator) throw new ApiError(status.NOT_FOUND, "Creator not found");
+
+  const isBlocked = payload.isBlocked ?? true;
+  const user = await User.findById(creator.user).select("authId");
+  if (user) {
+    await Auth.updateOne({ _id: user.authId }, { $set: { isBlocked } });
+  }
+  return { userId: creator.user, isBlocked };
+};
+
+const adminDeleteCreator = async (payload: { userId?: string; creatorId?: string }) => {
+  const targetId = payload.userId || payload.creatorId;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "userId or creatorId is required");
+
+  let creator = await Creator.findOne({ user: targetId });
+  if (!creator) creator = await Creator.findById(targetId);
+  if (!creator) throw new ApiError(status.NOT_FOUND, "Creator not found");
+
+  const user = await User.findById(creator.user);
+  if (user) {
+    if (user.profile_image) unlinkFile(user.profile_image);
+    await Auth.deleteOne({ _id: user.authId });
+    await User.deleteOne({ _id: user._id });
+  }
+
+  await Creator.deleteOne({ _id: creator._id });
+  return { userId: creator.user, deleted: true };
 };
 
 // Active = has a task on a campaign that's currently live. Pending = has a
@@ -681,6 +809,9 @@ const CreatorService = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  adminVerifyCreator,
+  adminToggleBlockCreator,
+  adminDeleteCreator,
   getAssignedCreatorProfile,
 };
 

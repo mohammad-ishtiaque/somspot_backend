@@ -533,6 +533,8 @@
           "icon": "https://cdn.somspot.so/icons/food-creator.png"
         },
         "followerCount": 50000,
+        "followerBadge": "50K",
+        "activeOfferTag": "Buy 1 Get 1 Free",
         "engagementRate": 8.5
       }
     ]
@@ -573,6 +575,9 @@
           "profile_image": "https://cdn.somspot.so/profiles/ahmed_hassan.png"
         },
         "platform": "tiktok",
+        "platformLabel": "TikTok Reel",
+        "views": 24500,
+        "viewsBadge": "24.5K",
         "draftVideoUrl": "https://cdn.somspot.so/videos/pizza_short.mp4",
         "thumbnail": "https://cdn.somspot.so/thumbnails/pizza_short.jpg",
         "caption": "Best Pizza in Mogadishu! 🍕 Buy 1 Get 1 Free through SomSpot",

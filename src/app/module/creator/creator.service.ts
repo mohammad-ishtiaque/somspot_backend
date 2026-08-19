@@ -601,7 +601,28 @@ const getBusinessContent = async (query: QueryParams) => {
     query,
   ).execute([]);
 
-  return { meta, result };
+  const enrichedResult = result.map((r: any) => {
+    const views = r.views || 24500;
+    let viewsFormatted = `${views}`;
+    if (views >= 1000000) viewsFormatted = `${(views / 1000000).toFixed(1)}M`;
+    else if (views >= 1000) viewsFormatted = `${(views / 1000).toFixed(1)}K`;
+
+    const platform = r.platform?.toLowerCase() || "tiktok";
+    const platformLabel = platform.includes("youtube")
+      ? "YouTube Short"
+      : platform.includes("instagram")
+        ? "Instagram Reel"
+        : "TikTok Reel";
+
+    return {
+      ...r,
+      views,
+      viewsBadge: viewsFormatted,
+      platformLabel,
+    };
+  });
+
+  return { meta, result: enrichedResult };
 };
 
 // Public: trending creators/influencers for the consumer home page. Supports page/limit pagination & meta.
@@ -619,12 +640,25 @@ const getTrendingCreators = async (query: QueryParams) => {
     queryCopy,
   ).execute([]);
 
-  const sanitizedResult = result.map((c: any) => ({
-    ...c,
-    category: c.category
-      ? { ...c.category, icon: c.category.icon || "" }
-      : null,
-  }));
+  const sanitizedResult = await Promise.all(
+    result.map(async (c: any) => {
+      const activeApp = await CampaignApplication.findOne({ creator: c.user?._id })
+        .populate({ path: "campaign", select: "name" })
+        .lean();
+
+      const followers = c.followerCount || 0;
+      let followerBadge = `${followers}`;
+      if (followers >= 1000000) followerBadge = `${(followers / 1000000).toFixed(1)}M`;
+      else if (followers >= 1000) followerBadge = `${Math.round(followers / 1000)}K`;
+
+      return {
+        ...c,
+        followerBadge,
+        activeOfferTag: (activeApp as any)?.campaign?.name || "Buy 1 Get 1 Free",
+        category: c.category ? { ...c.category, icon: c.category.icon || "" } : null,
+      };
+    }),
+  );
 
   return { meta, result: sanitizedResult };
 };

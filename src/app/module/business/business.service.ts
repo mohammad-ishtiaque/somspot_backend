@@ -3,12 +3,15 @@ import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
-import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
+import { EnumBusinessStatus, EnumUserRole, EnumOfferStatus } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
 import BusinessView from "./BusinessView";
 import User from "../user/User";
 import Saved from "../saved/Saved";
+import Offer from "../offer/Offer";
+import Review from "../review/Review";
+import Claim from "../claim/Claim";
 const tzlookup = require("tz-lookup");
 
 // Resolve an IANA timezone dynamically: an explicit value wins; otherwise
@@ -365,22 +368,161 @@ const deleteBusiness = async (userData: AuthUserPayload, payload: { businessId?:
 };
 
 
-// Admin "Business Listings" — all businesses regardless of status.
+// Admin "Business Listings" — all businesses regardless of status with owner details & metrics.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.status) base.status = query.status;
   if (query.category) base.category = query.category;
 
-  const { meta, result } = await new QueryBuilder(
+  const { meta, result: businesses } = await new QueryBuilder(
     Business.find(base)
       .populate([
-        { path: "category", select: "name slug" },
-        { path: "owner", select: "name email" },
+        { path: "category", select: "name slug icon" },
+        {
+          path: "owner",
+          select: "name email phoneNumber profile_image authId",
+          populate: { path: "authId", select: "email phoneNumber isBlocked" },
+        },
       ])
       .lean(),
     query,
-  ).execute(["name"]);
-  return { meta, result };
+  ).execute(["name", "description", "address"]);
+
+  const enrichedResult = await Promise.all(
+    businesses.map(async (b: any) => {
+      const owner = b.owner || {};
+      const auth = owner.authId || {};
+
+      const [activeOffersCount, claimsCount, viewsCount] = await Promise.all([
+        Offer.countDocuments({ business: b._id, status: EnumOfferStatus.ACTIVE }),
+        Claim.countDocuments({ business: b._id }),
+        BusinessView.countDocuments({ business: b._id }),
+      ]);
+
+      return {
+        _id: b._id,
+        businessId: b._id,
+        name: b.name,
+        businessName: b.name,
+        ownerName: owner.name || "N/A",
+        ownerEmail: owner.email || auth.email || "",
+        phone: b.phone || owner.phoneNumber || auth.phoneNumber || "",
+        category: (b.category as any)?.name || "General",
+        status: b.status || "pending",
+        ratingAvg: b.ratingAvg || 0,
+        ratingCount: b.ratingCount || 0,
+        activeOffersCount,
+        claimsCount,
+        viewsCount,
+        submittedDate: b.createdAt,
+        createdAt: b.createdAt,
+        logo: b.logo || null,
+        address: b.address || "",
+        owner,
+      };
+    }),
+  );
+
+  return { meta, result: enrichedResult };
+};
+
+// Admin "Business Details" — full business info, owner info, offers, reviews, and analytics summary.
+const adminGetBusinessDetails = async (query: { businessId?: string; id?: string }) => {
+  const targetId = query.businessId || query.id;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "businessId is required");
+
+  const business = await Business.findById(targetId)
+    .populate([
+      { path: "category", select: "name slug icon" },
+      {
+        path: "owner",
+        select: "name email phoneNumber profile_image authId createdAt",
+        populate: { path: "authId", select: "email phoneNumber isBlocked" },
+      },
+    ])
+    .lean();
+
+  if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
+
+  const ownerObj: any = business.owner || {};
+  const authObj: any = ownerObj.authId || {};
+
+  const [offers, reviews, totalViews, claimsCount] = await Promise.all([
+    Offer.find({ business: business._id }).lean(),
+    Review.find({ business: business._id })
+      .populate([{ path: "user", select: "name profile_image email" }])
+      .lean(),
+    BusinessView.countDocuments({ business: business._id }),
+    Claim.countDocuments({ business: business._id }),
+  ]);
+
+  const activeOffersCount = offers.filter((o) => o.status === EnumOfferStatus.ACTIVE).length;
+
+  return {
+    _id: business._id,
+    businessId: business._id,
+    name: business.name,
+    businessName: business.name,
+    description: business.description || "",
+    address: business.address || "",
+    phone: business.phone || ownerObj.phoneNumber || authObj.phoneNumber || "",
+    whatsapp: business.whatsapp || "",
+    status: business.status || "pending",
+    rejectionReason: business.rejectionReason || null,
+    ratingAvg: business.ratingAvg || 0,
+    ratingCount: business.ratingCount || 0,
+    logo: business.logo || null,
+    coverImage: business.coverImage || null,
+    gallery: business.gallery || [],
+    openingHours: business.openingHours || {},
+    location: business.location || null,
+    createdAt: business.createdAt,
+    category: business.category,
+
+    ownerInformation: {
+      _id: ownerObj._id,
+      ownerName: ownerObj.name || "N/A",
+      email: ownerObj.email || authObj.email || "",
+      phone: ownerObj.phoneNumber || authObj.phoneNumber || business.phone || "",
+      avatar: ownerObj.profile_image || null,
+      createdAt: ownerObj.createdAt || business.createdAt,
+    },
+
+    offers: offers.map((o: any) => ({
+      _id: o._id,
+      offerId: o._id,
+      title: o.title,
+      description: o.description || "",
+      discountPercentage: o.discountPercentage || 0,
+      code: o.code || "",
+      status: o.status || "active",
+      claimedCount: o.claimedCount || 0,
+      startDate: o.startDate,
+      endDate: o.endDate,
+    })),
+
+    reviews: reviews.map((r: any) => ({
+      _id: r._id,
+      reviewId: r._id,
+      rating: r.rating,
+      comment: r.review,
+      review: r.review,
+      helpfulCount: r.helpfulCount || (r.helpfulUsers ? r.helpfulUsers.length : 0),
+      user: r.user,
+      moderationStatus: r.moderationStatus || "visible",
+      createdAt: r.createdAt,
+    })),
+
+    analytics: {
+      totalViews: totalViews || 0,
+      activeOffersCount,
+      totalClaims: claimsCount,
+      reviewsCount: business.ratingCount || reviews.length,
+    },
+
+    business,
+    owner: ownerObj,
+  };
 };
 
 const BusinessService = {
@@ -393,6 +535,7 @@ const BusinessService = {
   verifyBusiness,
   deleteBusiness,
   adminGetAll,
+  adminGetBusinessDetails,
 };
 
 export { BusinessService };

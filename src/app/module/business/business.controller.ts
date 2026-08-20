@@ -146,6 +146,11 @@ const adminGetAll = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Businesses retrieved", data: result });
 });
 
+const adminGetBusinessDetails = catchAsync(async (req: Request, res: Response) => {
+  const result = await BusinessService.adminGetBusinessDetails(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Business details retrieved", data: result });
+});
+
 const BusinessController = {
   createBusiness,
   getAllBusinesses,
@@ -156,6 +161,7 @@ const BusinessController = {
   verifyBusiness,
   deleteBusiness,
   adminGetAll,
+  adminGetBusinessDetails,
 };
 
 export { BusinessController };

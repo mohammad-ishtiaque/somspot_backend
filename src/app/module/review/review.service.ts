@@ -45,18 +45,45 @@ const postReview = async (userData: AuthUserPayload, payload: Record<string, any
   return review;
 };
 
-const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
-  const queryObj = isPrivileged(userData.role) ? {} : { user: userData.userId };
+const getAllReviews = async (userData?: AuthUserPayload, query: QueryParams = {}) => {
+  const { businessId, business: qBusiness, userId: qUserId, rating, moderationStatus, myReviews, ...listQuery } = query;
+
+  const baseFilter: Record<string, unknown> = {};
+
+  if (myReviews === "true" && userData?.userId) {
+    baseFilter.user = userData.userId;
+  } else if (qUserId) {
+    baseFilter.user = qUserId;
+  }
+
+  const targetBusinessId = businessId || qBusiness;
+  if (targetBusinessId) {
+    baseFilter.business = targetBusinessId;
+  }
+
+  if (rating) {
+    baseFilter.rating = Number(rating);
+  }
+
+  if (moderationStatus) {
+    baseFilter.moderationStatus = moderationStatus;
+  } else if (!userData || !isPrivileged(userData.role)) {
+    baseFilter.moderationStatus = { $ne: "hidden" };
+  }
 
   const { meta, result } = await new QueryBuilder(
-    Review.find(queryObj)
+    Review.find(baseFilter)
       .populate([
-        { path: "user", select: "name profile_image" },
-        { path: "business", select: "name logo" },
+        { path: "user", select: "name profile_image email" },
+        {
+          path: "business",
+          select: "name logo address category ratingAvg",
+          populate: { path: "category", select: "name slug icon" },
+        },
       ])
       .lean(),
-    query,
-  ).execute([]);
+    listQuery as QueryParams,
+  ).execute(["review"]);
 
   const targetUserId = userData?.userId;
   const enrichedResult = result.map((r: any) => {
@@ -68,6 +95,8 @@ const getAllReviews = async (userData: AuthUserPayload, query: QueryParams) => {
     const { helpfulUsers, ...rest } = r;
     return {
       ...rest,
+      reviewId: r._id,
+      comment: r.review,
       helpfulCount,
       isHelpful,
     };
@@ -101,6 +130,8 @@ const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload
     const { helpfulUsers, ...rest } = r; // exclude helpfulUsers array from response for payload size
     return {
       ...rest,
+      reviewId: r._id,
+      comment: r.review,
       helpfulCount,
       isHelpful,
     };
@@ -132,10 +163,19 @@ const toggleHelpful = async (userData: AuthUserPayload, payload: { reviewId?: st
   };
 };
 
-const getReview = async (userData: AuthUserPayload, query: { reviewId?: string }) => {
-  validateFields(query, ["reviewId"]);
-  const review = await Review.findById(query.reviewId)
-    .populate([{ path: "user", select: "name profile_image" }])
+const getReview = async (userData?: AuthUserPayload, query: { reviewId?: string; id?: string; _id?: string } = {}) => {
+  const targetId = query.reviewId || query.id || query._id;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "reviewId is required");
+
+  const review = await Review.findById(targetId)
+    .populate([
+      { path: "user", select: "name profile_image email" },
+      {
+        path: "business",
+        select: "name logo address category ratingAvg ratingCount",
+        populate: { path: "category", select: "name slug icon" },
+      },
+    ])
     .lean();
   if (!review) throw new ApiError(status.NOT_FOUND, "Review not found");
 
@@ -149,6 +189,8 @@ const getReview = async (userData: AuthUserPayload, query: { reviewId?: string }
 
   return {
     ...rest,
+    reviewId: review._id,
+    comment: review.review,
     helpfulCount,
     isHelpful,
   };

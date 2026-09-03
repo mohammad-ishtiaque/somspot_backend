@@ -69,8 +69,18 @@ const deleteNotification = catchAsync(async (req: Request, res: Response) => {
 
 
 const adminBroadcast = catchAsync(async (req: Request, res: Response) => {
-  const result = await NotificationService.adminBroadcast(req.body);
-  sendResponse(res, { statusCode: 200, success: true, message: "Broadcast sent", data: result });
+  const files = (req.files || {}) as Record<string, Express.Multer.File[]>;
+  const payload = { ...req.body };
+  if (files.notificationImage?.[0]) payload.imageUrl = files.notificationImage[0].path;
+
+  const result = await NotificationService.adminBroadcast(req.user, payload);
+  const message = result && "scheduled" in result ? "Broadcast scheduled" : "Broadcast sent";
+  sendResponse(res, { statusCode: 200, success: true, message, data: result });
+});
+
+const adminGetBroadcasts = catchAsync(async (req: Request, res: Response) => {
+  const result = await NotificationService.adminGetBroadcasts(req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Broadcast history retrieved", data: result });
 });
 
 const NotificationController = {
@@ -79,6 +89,7 @@ const NotificationController = {
   updateAsReadUnread,
   deleteNotification,
   adminBroadcast,
+  adminGetBroadcasts,
 };
 
 export { NotificationController };

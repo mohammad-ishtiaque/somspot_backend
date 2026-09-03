@@ -30,6 +30,8 @@ router
   // admin — creator discovery & management for Influencers screen
   .get("/admin/list", auth(config.auth_level.admin), CreatorController.adminListCreators)
   .get("/admin/get", auth(config.auth_level.admin), CreatorController.adminGetCreatorProfile)
+  .get("/admin/applications", auth(config.auth_level.admin), CreatorController.adminGetCreatorApplications)
+  .get("/admin/wallet", auth(config.auth_level.admin), CreatorController.adminGetCreatorWallet)
   .patch("/admin/verify", auth(config.auth_level.admin), CreatorController.adminVerifyCreator)
   .patch("/admin/block", auth(config.auth_level.admin), CreatorController.adminToggleBlockCreator)
   .delete("/admin/delete", auth(config.auth_level.admin), CreatorController.adminDeleteCreator)

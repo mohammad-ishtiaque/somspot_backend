@@ -55,13 +55,17 @@ const EnumBusinessCategory = {
   ELECTRONICS: "electronics",
 };
 
-// Offer/deal lifecycle. SCHEDULED/EXPIRED are never written to the DB — they're
-// derived at read time from startAt/endAt (see offer.service withDerivedStatus).
+// Offer/deal lifecycle. New offers start PENDING and need admin approval
+// (see offer.service adminModerate) before they can go live. SCHEDULED/EXPIRED
+// are never written to the DB — they're derived at read time from
+// startAt/endAt (see offer.service withDerivedStatus), same as before.
 const EnumOfferStatus = {
+  PENDING: "pending",
   ACTIVE: "active",
   SCHEDULED: "scheduled",
   EXPIRED: "expired",
   INACTIVE: "inactive",
+  REJECTED: "rejected",
 };
 
 // A user's claimed offer ("wallet") lifecycle

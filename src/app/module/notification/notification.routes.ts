@@ -1,6 +1,7 @@
 import express from "express";
 import auth from "../../middleware/auth";
 import config from "../../../config";
+import { uploadFile } from "../../middleware/fileUploader";
 import { NotificationController } from "./notification.controller";
 
 const router = express.Router();
@@ -29,7 +30,13 @@ router
   .post(
     "/admin/broadcast",
     auth(config.auth_level.admin),
+    uploadFile(),
     NotificationController.adminBroadcast,
+  )
+  .get(
+    "/admin/broadcasts",
+    auth(config.auth_level.admin),
+    NotificationController.adminGetBroadcasts,
   );
 
 export = router;

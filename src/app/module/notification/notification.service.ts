@@ -6,11 +6,13 @@ import validateFields from "../../../util/validateFields";
 import { EnumUserRole } from "../../../util/enum";
 import AdminNotification from "./AdminNotification";
 import Notification from "./Notification";
+import NotificationBroadcast from "./NotificationBroadcast";
 import Auth from "../auth/Auth";
 import User from "../user/User";
 import { AuthUserPayload } from "../../../types/auth.types";
 import { IAdminNotification } from "./AdminNotification.interface";
 import { INotification } from "./Notification.interface";
+import { logger } from "../../../util/logger";
 
 const getNotification = async (
   userData: AuthUserPayload,
@@ -135,37 +137,123 @@ const deleteNotification = async (
 };
 
 
-// Admin broadcast to an audience (Figma: Users / Merchants / Influencers / All).
-const adminBroadcast = async (payload: {
-  title?: string;
-  message?: string;
-  audience?: string;
-}) => {
-  validateFields(payload, ["title", "message"]);
-  const audience = (payload.audience || "all").toUpperCase();
+const AUDIENCE_ROLE_MAP: Record<string, string[]> = {
+  ALL: [EnumUserRole.USER, EnumUserRole.MERCHANT, EnumUserRole.CREATOR],
+  USERS: [EnumUserRole.USER],
+  MERCHANTS: [EnumUserRole.MERCHANT],
+  INFLUENCERS: [EnumUserRole.CREATOR],
+  CREATORS: [EnumUserRole.CREATOR],
+};
 
-  const roleMap: Record<string, string[]> = {
-    ALL: [EnumUserRole.USER, EnumUserRole.MERCHANT, EnumUserRole.CREATOR],
-    USERS: [EnumUserRole.USER],
-    MERCHANTS: [EnumUserRole.MERCHANT],
-    INFLUENCERS: [EnumUserRole.CREATOR],
-    CREATORS: [EnumUserRole.CREATOR],
-  };
-  const roles = roleMap[audience] || roleMap.ALL;
-
+// Resolved fresh (not snapshotted at broadcast-creation time) so a scheduled
+// broadcast reaches whoever matches the audience *when it actually sends*.
+const resolveAudienceUserIds = async (audience: string) => {
+  const roles = AUDIENCE_ROLE_MAP[audience.toUpperCase()] || AUDIENCE_ROLE_MAP.ALL;
   const auths = await Auth.find({ role: { $in: roles } }).select("_id").lean();
   const users = await User.find({ authId: { $in: auths.map((a) => a._id) } }).select("_id").lean();
+  return users.map((u) => u._id);
+};
 
-  if (!users.length) return { sent: 0 };
+// Admin broadcast to an audience (Figma: Users / Merchants / Influencers / All).
+// `scheduledAt` in the future defers sending to the per-minute cron below
+// instead of writing per-recipient Notification rows immediately. Either way,
+// a `NotificationBroadcast` summary row is written — the History tab's source.
+const adminBroadcast = async (
+  userData: AuthUserPayload | undefined,
+  payload: { title?: string; message?: string; audience?: string; imageUrl?: string; scheduledAt?: string },
+) => {
+  validateFields(payload, ["title", "message"]);
+  const audience = (payload.audience || "all").toUpperCase();
+  const scheduledAt = payload.scheduledAt ? new Date(payload.scheduledAt) : null;
 
-  const docs = users.map((u) => ({
-    toId: u._id,
+  if (scheduledAt && scheduledAt.getTime() > Date.now()) {
+    const broadcast = await NotificationBroadcast.create({
+      title: payload.title,
+      message: payload.message,
+      audience,
+      imageUrl: payload.imageUrl,
+      status: "scheduled",
+      scheduledAt,
+      sentBy: userData?.authId,
+    });
+    return { scheduled: true, broadcastId: broadcast._id, scheduledAt };
+  }
+
+  const userIds = await resolveAudienceUserIds(audience);
+  const docs = userIds.map((id) => ({
+    toId: id,
     title: payload.title,
     message: payload.message,
+    imageUrl: payload.imageUrl,
   }));
-  await Notification.insertMany(docs);
+  if (docs.length) await Notification.insertMany(docs);
+
+  await NotificationBroadcast.create({
+    title: payload.title,
+    message: payload.message,
+    audience,
+    imageUrl: payload.imageUrl,
+    status: "sent",
+    recipientCount: docs.length,
+    sentAt: new Date(),
+    sentBy: userData?.authId,
+  });
+
   return { sent: docs.length, audience };
 };
+
+// Admin "Notification History" tab.
+const adminGetBroadcasts = async (query: QueryParams) => {
+  const { meta, result } = await new QueryBuilder(
+    NotificationBroadcast.find({}).lean(),
+    query,
+  ).execute(["title", "message"]);
+  return { meta, result };
+};
+
+// Cron body: send any broadcast whose scheduled time has arrived. A failure
+// for one broadcast (e.g. a bad audience) doesn't block the others.
+const sendDueScheduledBroadcasts = async () => {
+  const due = await NotificationBroadcast.find({
+    status: "scheduled",
+    scheduledAt: { $lte: new Date() },
+  }).lean();
+
+  for (const broadcast of due) {
+    try {
+      const userIds = await resolveAudienceUserIds(broadcast.audience);
+      const docs = userIds.map((id) => ({
+        toId: id,
+        title: broadcast.title,
+        message: broadcast.message,
+        imageUrl: broadcast.imageUrl,
+      }));
+      if (docs.length) await Notification.insertMany(docs);
+
+      await NotificationBroadcast.updateOne(
+        { _id: broadcast._id },
+        { $set: { status: "sent", recipientCount: docs.length, sentAt: new Date() } },
+      );
+    } catch (error) {
+      await NotificationBroadcast.updateOne(
+        { _id: broadcast._id },
+        { $set: { status: "failed", failureReason: error instanceof Error ? error.message : "Unknown error" } },
+      );
+    }
+  }
+};
+
+// node-cron ships as an ESM-only package.json; a dynamic import lets a CJS
+// build load it (see auth.service.ts for the same pattern / TS1479).
+import("node-cron").then(({ default: cron }) => {
+  cron.schedule("* * * * *", async () => {
+    try {
+      await sendDueScheduledBroadcasts();
+    } catch (error) {
+      logger.error("Error sending scheduled notification broadcasts:", error);
+    }
+  });
+});
 
 const NotificationService = {
   getNotification,
@@ -173,6 +261,7 @@ const NotificationService = {
   updateAsReadUnread,
   deleteNotification,
   adminBroadcast,
+  adminGetBroadcasts,
 };
 
 export { NotificationService };

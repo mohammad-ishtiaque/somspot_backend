@@ -97,6 +97,16 @@ const adminGetCreatorProfile = catchAsync(async (req: Request, res: Response) =>
   sendResponse(res, { statusCode: 200, success: true, message: "Creator profile retrieved", data: result });
 });
 
+const adminGetCreatorApplications = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminGetCreatorApplications(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator applications retrieved", data: result });
+});
+
+const adminGetCreatorWallet = catchAsync(async (req: Request, res: Response) => {
+  const result = await CreatorService.adminGetCreatorWallet(req.query);
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator wallet retrieved", data: result });
+});
+
 const adminVerifyCreator = catchAsync(async (req: Request, res: Response) => {
   const result = await CreatorService.adminVerifyCreator(req.body);
   sendResponse(res, { statusCode: 200, success: true, message: `Creator profile ${result.status}`, data: result });
@@ -141,6 +151,8 @@ const CreatorController = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  adminGetCreatorApplications,
+  adminGetCreatorWallet,
   adminVerifyCreator,
   adminToggleBlockCreator,
   adminDeleteCreator,

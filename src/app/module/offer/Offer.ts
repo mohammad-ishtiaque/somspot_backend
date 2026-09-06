@@ -33,7 +33,7 @@ const offerSchema = new Schema<IOffer>(
     status: {
       type: String,
       enum: Object.values(EnumOfferStatus),
-      default: EnumOfferStatus.ACTIVE,
+      default: EnumOfferStatus.PENDING,
     },
     claimLimitPerUser: { type: Number, default: 1 },
     totalClaims: { type: Number, default: 0 },

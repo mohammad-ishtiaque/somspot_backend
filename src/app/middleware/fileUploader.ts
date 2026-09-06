@@ -30,6 +30,8 @@ const FIELD_RULES: Record<string, FieldRule> = {
   offerImage: { maxCount: 1, mimeTypes: IMAGE },
   // category
   icon: { maxCount: 1, mimeTypes: IMAGE },
+  // notification broadcast
+  notificationImage: { maxCount: 1, mimeTypes: IMAGE },
   // campaign / creator drafts
   thumbnail: { maxCount: 1, mimeTypes: IMAGE },
   draftVideo: { maxCount: 1, mimeTypes: VIDEO },

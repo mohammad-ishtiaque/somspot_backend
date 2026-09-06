@@ -365,7 +365,9 @@ const deleteBusiness = async (userData: AuthUserPayload, payload: { businessId?:
 };
 
 
-// Admin "Business Listings" — all businesses regardless of status.
+// Admin "Business Listings" — all businesses regardless of status. Also
+// surfaces each business's view count (from BusinessView) for the list/detail
+// screens, same as offer.service's adminGetAll does for offers.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.status) base.status = query.status;
@@ -380,7 +382,19 @@ const adminGetAll = async (query: QueryParams) => {
       .lean(),
     query,
   ).execute(["name"]);
-  return { meta, result };
+
+  const viewCounts = await BusinessView.aggregate([
+    { $match: { business: { $in: result.map((b) => b._id) } } },
+    { $group: { _id: "$business", count: { $sum: 1 } } },
+  ]);
+  const viewsByBusiness = new Map(viewCounts.map((v) => [String(v._id), v.count]));
+
+  const enrichedResult = result.map((b) => ({
+    ...b,
+    views: viewsByBusiness.get(String(b._id)) || 0,
+  }));
+
+  return { meta, result: enrichedResult };
 };
 
 const BusinessService = {

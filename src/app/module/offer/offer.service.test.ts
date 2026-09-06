@@ -4,7 +4,9 @@ import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler
 import { OfferService } from "./offer.service";
 import { ClaimService } from "../claim/claim.service";
 import Business from "../business/Business";
-import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
+import { EnumBusinessStatus, EnumOfferStatus, EnumUserRole } from "../../../util/enum";
+
+const approve = (offerId: string) => OfferService.adminModerate({ offerId, action: "approve" });
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -17,10 +19,11 @@ const makeBusiness = () =>
   Business.create({ owner: merchant.userId, name: "Shop", category: new mongoose.Types.ObjectId(), status: EnumBusinessStatus.APPROVED });
 
 describe("OfferService", () => {
-  it("creates an offer for the owner's business", async () => {
+  it("creates an offer for the owner's business, pending admin approval", async () => {
     const b = await makeBusiness();
     const o = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "20% Off", endAt: future });
     expect(o.title).toBe("20% Off");
+    expect(o.status).toBe(EnumOfferStatus.PENDING);
   });
 
   it("blocks creating an offer for someone else's business", async () => {
@@ -28,40 +31,52 @@ describe("OfferService", () => {
     await expect(OfferService.createOffer(merchant as any, { business: String(b._id), title: "x", endAt: future })).rejects.toThrow();
   });
 
-  it("only lists active, non-expired offers", async () => {
+  it("excludes a pending (not-yet-approved) offer from the consumer feed", async () => {
     const b = await makeBusiness();
-    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Live", endAt: future });
-    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Old", endAt: new Date(Date.now() - 1000).toISOString() });
+    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Awaiting approval", endAt: future });
+    const { result } = await OfferService.getAllOffers({});
+    expect(result).toHaveLength(0);
+  });
+
+  it("only lists active, non-expired offers, once approved", async () => {
+    const b = await makeBusiness();
+    const live = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Live", endAt: future });
+    const old = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Old", endAt: new Date(Date.now() - 1000).toISOString() });
+    await approve(String(live._id));
+    await approve(String(old._id));
+
     const { result } = await OfferService.getAllOffers({});
     expect(result).toHaveLength(1);
     expect(result[0].title).toBe("Live");
   });
 
-  it("excludes scheduled (future startAt) offers from the consumer feed", async () => {
+  it("excludes scheduled (future startAt) offers from the consumer feed, once approved", async () => {
     const b = await makeBusiness();
-    await OfferService.createOffer(merchant as any, {
+    const offer = await OfferService.createOffer(merchant as any, {
       business: String(b._id),
       title: "Not yet",
       startAt: future,
       endAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
+    await approve(String(offer._id));
     const { result } = await OfferService.getAllOffers({});
     expect(result).toHaveLength(0);
   });
 
-  it("derives active/scheduled/expired status and counts for the merchant list", async () => {
+  it("derives active/scheduled/expired status and counts for the merchant list, once approved", async () => {
     const b = await makeBusiness();
-    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Live", endAt: future });
-    await OfferService.createOffer(merchant as any, {
+    const liveOffer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Live", endAt: future });
+    const upcoming = await OfferService.createOffer(merchant as any, {
       business: String(b._id),
       title: "Upcoming",
       startAt: future,
       endAt: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
-    await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Old", endAt: new Date(Date.now() - 1000).toISOString() });
+    const old = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Old", endAt: new Date(Date.now() - 1000).toISOString() });
+    await Promise.all([approve(String(liveOffer._id)), approve(String(upcoming._id)), approve(String(old._id))]);
 
     const { counts, result } = await OfferService.getMyOffers(merchant as any, {});
-    expect(counts).toEqual({ active: 1, scheduled: 1, expired: 1, inactive: 0 });
+    expect(counts).toEqual({ pending: 0, active: 1, scheduled: 1, expired: 1, inactive: 0, rejected: 0 });
 
     const scheduledOnly = await OfferService.getMyOffers(merchant as any, { status: "scheduled" } as any);
     expect(scheduledOnly.result).toHaveLength(1);
@@ -70,9 +85,37 @@ describe("OfferService", () => {
     expect(result).toHaveLength(3);
   });
 
+  it("hides a pending offer from other users but lets the owner and admin see it", async () => {
+    const b = await makeBusiness();
+    const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Awaiting approval", endAt: future });
+
+    const otherUser = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.USER };
+    await expect(OfferService.getOffer({ offerId: String(offer._id) }, otherUser as any)).rejects.toThrow();
+
+    const owner = await OfferService.getOffer({ offerId: String(offer._id) }, merchant as any);
+    expect(owner.status).toBe(EnumOfferStatus.PENDING);
+
+    const admin = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.ADMIN };
+    const asAdmin = await OfferService.getOffer({ offerId: String(offer._id) }, admin as any);
+    expect(asAdmin.status).toBe(EnumOfferStatus.PENDING);
+  });
+
+  it("rejects a pending offer, keeping it out of the consumer feed", async () => {
+    const b = await makeBusiness();
+    const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Bad offer", endAt: future });
+    await OfferService.adminModerate({ offerId: String(offer._id), action: "reject" });
+
+    const { result } = await OfferService.getAllOffers({});
+    expect(result).toHaveLength(0);
+
+    const asOwner = await OfferService.getOffer({ offerId: String(offer._id) }, merchant as any);
+    expect(asOwner.status).toBe(EnumOfferStatus.REJECTED);
+  });
+
   it("returns isClaimed true and claimCode when offer is claimed by the user", async () => {
     const b = await makeBusiness();
     const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Claimable", endAt: future });
+    await approve(String(offer._id));
 
     const user = { userId: new mongoose.Types.ObjectId().toString(), role: EnumUserRole.USER };
 

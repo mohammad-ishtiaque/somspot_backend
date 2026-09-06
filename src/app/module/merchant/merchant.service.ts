@@ -4,6 +4,7 @@ import {
   EnumCampaignStatus,
   EnumClaimStatus,
   EnumOfferStatus,
+  EnumSubscriptionStatus,
 } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "../business/Business";
@@ -15,6 +16,7 @@ import Notification from "../notification/Notification";
 import Auth from "../auth/Auth";
 import User from "../user/User";
 import Subscription from "../subscription/Subscription";
+import { PLANS as SUBSCRIPTION_PLANS } from "../subscription/subscription.service";
 import ApiError from "../../../error/ApiError";
 import validateFields from "../../../util/validateFields";
 import { EnumUserRole } from "../../../util/enum";
@@ -223,6 +225,7 @@ const adminGetMerchants = async (query: QueryParams) => {
       status: b.status || "pending",
       category: (b.category as any)?.name || "General",
       createdAt: b.createdAt,
+      isBlocked: auth.isBlocked || false,
     };
   });
 
@@ -271,8 +274,13 @@ const adminGetMerchant = async (query: { merchantId?: string; businessId?: strin
     Subscription.findOne({ merchant: ownerObj._id || targetId }).lean(),
   ]);
 
-  const planName = (subscription as any)?.plan || "Premium";
-  const subStatus = (subscription as any)?.status || "active";
+  // `Subscription` has no `plan` field (only `productId`/`entitlement`, mirroring
+  // RevenueCat) — resolve the friendly name from the same catalogue the
+  // merchant's own "Choose a Plan" screen uses, instead of a hardcoded guess.
+  const sub = subscription as any;
+  const matchedPlan = SUBSCRIPTION_PLANS.find((p) => p.id === sub?.productId);
+  const planName = matchedPlan?.name || sub?.entitlement || sub?.productId || "No Plan";
+  const subStatus = sub?.status || EnumSubscriptionStatus.NONE;
 
   return {
     _id: business._id,
@@ -281,6 +289,7 @@ const adminGetMerchant = async (query: { merchantId?: string; businessId?: strin
     businessName: business.name,
     status: business.status || "pending",
     rejectionReason: business.rejectionReason || null,
+    isBlocked: authObj.isBlocked || false,
 
     ownerInformation: {
       ownerName: ownerObj.name || "N/A",

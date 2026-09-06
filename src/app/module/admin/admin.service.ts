@@ -16,6 +16,7 @@ import Payout from "../creator/Payout";
 import Earning from "../creator/Earning";
 import Payment from "../payment/Payment";
 import Subscription from "../subscription/Subscription";
+import OfferView from "../offer/OfferView";
 import { EnumSubscriptionStatus } from "../../../util/enum";
 import CampaignApplication from "../creator/CampaignApplication";
 import { EnumTaskStatus } from "../../../util/enum";
@@ -209,8 +210,66 @@ const getPlatformAnalytics = async () => {
         .lean(),
     ]);
 
+  // ---- Analytics page: last 6 months, one bucket per calendar month ----
+  // `monthBoundaries[i].end` is the last instant of that month, used for
+  // *cumulative* running-total counts (matches a growth chart ending at the
+  // current total). `monthBoundaries[i].start` is that month's first instant,
+  // used for *per-month* counts (new activity within that month only).
+  const now = new Date();
+  const monthBoundaries = Array.from({ length: 6 }, (_, i) => {
+    const offset = 5 - i; // 5 = 5 months ago ... 0 = current month
+    const start = new Date(now.getFullYear(), now.getMonth() - offset, 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 0, 23, 59, 59, 999);
+    const label = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+    return { label, start, end };
+  });
+
+  const [userGrowthTrend, merchantGrowthTrend, offerEngagementTrend, activeMerchants, totalRevenueAgg] =
+    await Promise.all([
+      // Cumulative consumer total + cumulative active-consumer total, per month.
+      Promise.all(
+        monthBoundaries.map(async ({ label, end }) => {
+          const [users, active] = await Promise.all([
+            Auth.countDocuments({ role: EnumUserRole.USER, createdAt: { $lte: end } }),
+            Auth.countDocuments({ role: EnumUserRole.USER, isActive: true, createdAt: { $lte: end } }),
+          ]);
+          return { month: label, users, active };
+        }),
+      ),
+      // Cumulative merchant total, per month.
+      Promise.all(
+        monthBoundaries.map(async ({ label, end }) => {
+          const merchantsCount = await Auth.countDocuments({ role: EnumUserRole.MERCHANT, createdAt: { $lte: end } });
+          return { month: label, merchants: merchantsCount };
+        }),
+      ),
+      // Views (OfferView) + claims created within each month.
+      Promise.all(
+        monthBoundaries.map(async ({ label, start, end }) => {
+          const [views, claims] = await Promise.all([
+            OfferView.countDocuments({ createdAt: { $gte: start, $lte: end } }),
+            Claim.countDocuments({ createdAt: { $gte: start, $lte: end } }),
+          ]);
+          return { month: label, views, claims };
+        }),
+      ),
+      Auth.countDocuments({ role: EnumUserRole.MERCHANT, isActive: true }),
+      Payment.aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }]),
+    ]);
+
+  // Simple month-over-month % change (last bucket vs the one before it) for
+  // the Analytics page's 4 stat cards.
+  const pctChange = (curr: number, prev: number) => (prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : 0);
+  const last = monthBoundaries.length - 1;
+  const changes = {
+    users: pctChange(userGrowthTrend[last].users, userGrowthTrend[last - 1]?.users ?? 0),
+    merchants: pctChange(merchantGrowthTrend[last].merchants, merchantGrowthTrend[last - 1]?.merchants ?? 0),
+    claims: pctChange(offerEngagementTrend[last].claims, offerEngagementTrend[last - 1]?.claims ?? 0),
+    revenue: pctChange(revenueTrend[revenueTrend.length - 1]?.total ?? 0, revenueTrend[revenueTrend.length - 2]?.total ?? 0),
+  };
+
   return {
-    users: { consumers, merchants, creators },
+    users: { consumers, merchants, creators, activeMerchants },
     businesses: { total: totalBusinesses, pending: pendingBusinesses, approved: approvedBusinesses },
     offers: { active: activeOffers },
     claims: { total: totalClaims, redeemed: redeemedClaims },
@@ -218,6 +277,7 @@ const getPlatformAnalytics = async () => {
     reviews: { total: totalReviews },
     payouts: { pending: pendingPayouts },
     estRevenue: revenueAgg[0]?.total || 0,
+    totalRevenue: totalRevenueAgg[0]?.total || 0,
     pendingVerifications: recentBusinesses,
     categoryDistribution,
     influencer: {
@@ -230,6 +290,12 @@ const getPlatformAnalytics = async () => {
     revenueTrend,
     activeSubscriptions,
     recentActivity,
+    // Added for the admin Analytics page (`/analytics`) — additive only,
+    // existing fields above are unchanged so the Dashboard page keeps working.
+    userGrowthTrend,
+    merchantGrowthTrend,
+    offerEngagementTrend,
+    changes,
   };
 };
 

@@ -4,6 +4,7 @@ export interface INotification extends Document {
   toId: Types.ObjectId;
   title: string;
   message: string;
+  imageUrl?: string;
   isRead: boolean;
   createdAt: Date;
   updatedAt: Date;

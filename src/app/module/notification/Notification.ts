@@ -15,6 +15,9 @@ const notificationSchema = new Schema<INotification>(
       type: String,
       required: true,
     },
+    imageUrl: {
+      type: String,
+    },
     isRead: {
       type: Boolean,
       default: false,

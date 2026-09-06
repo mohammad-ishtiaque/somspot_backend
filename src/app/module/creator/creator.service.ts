@@ -670,6 +670,69 @@ const adminGetCreatorProfile = async (query: { userId?: string }) => {
   return attachTaskCounts(profile);
 };
 
+// Admin "Influencers" detail screen — Campaigns tab (joined campaigns) and
+// Content tab (submitted drafts/posts) are both derived from the same
+// CampaignApplication list; the frontend picks the fields it needs per tab.
+const adminGetCreatorApplications = async (query: { userId?: string }) => {
+  validateFields(query, ["userId"]);
+  const applications = await CampaignApplication.find({ creator: query.userId })
+    .populate([
+      {
+        path: "campaign",
+        select: "name status merchant",
+        populate: { path: "merchant", select: "name" },
+      },
+    ])
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+  return { result: applications };
+};
+
+// Admin "Influencers" detail screen — Earnings tab, for a specific creator
+// (not the logged-in user). Same shape/aggregation as the creator's own
+// `getWallet`, parameterized by userId instead of the auth token.
+const adminGetCreatorWallet = async (query: { userId?: string }) => {
+  validateFields(query, ["userId"]);
+  const creatorId = mongoose.Types.ObjectId.createFromHexString(query.userId!);
+  const [[agg], [pendingPayoutAgg], recentCommissions] = await Promise.all([
+    Earning.aggregate([
+      { $match: { creator: creatorId } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: "$amount" },
+          available: { $sum: { $cond: [{ $eq: ["$status", "available"] }, "$amount", 0] } },
+          paid: { $sum: { $cond: [{ $eq: ["$status", "paid"] }, "$amount", 0] } },
+        },
+      },
+    ]),
+    Payout.aggregate([
+      { $match: { creator: creatorId, status: EnumPayoutStatus.PENDING } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+    Earning.find({ creator: query.userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate([{ path: "campaign", select: "name" }])
+      .lean(),
+  ]);
+
+  return {
+    totalEarnings: agg?.total || 0,
+    availableBalance: agg?.available || 0,
+    paidOut: agg?.paid || 0,
+    pendingPayout: pendingPayoutAgg?.total || 0,
+    recentCommissions: recentCommissions.map((e: any) => ({
+      _id: e._id,
+      campaign: e.campaign?.name || null,
+      amount: e.amount,
+      status: e.status,
+      createdAt: e.createdAt,
+    })),
+  };
+};
+
 // Merchant's "View Profile" from the Influencers tab — same shape as the
 // admin picker's profile, but scoped: only for a creator actually assigned
 // to one of this merchant's own campaigns, not open browsing of any creator.
@@ -809,6 +872,8 @@ const CreatorService = {
   processPayout,
   adminListCreators,
   adminGetCreatorProfile,
+  adminGetCreatorApplications,
+  adminGetCreatorWallet,
   adminVerifyCreator,
   adminToggleBlockCreator,
   adminDeleteCreator,

@@ -4,7 +4,7 @@ import { connectTestDb, clearTestDb, closeTestDb } from "../../../test/dbHandler
 import { ClaimService } from "./claim.service";
 import Offer from "../offer/Offer";
 import Business from "../business/Business";
-import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
+import { EnumBusinessStatus, EnumOfferStatus, EnumUserRole } from "../../../util/enum";
 
 beforeAll(connectTestDb);
 afterEach(clearTestDb);
@@ -15,7 +15,16 @@ const merchantId = new mongoose.Types.ObjectId();
 
 const makeOffer = async () => {
   const b = await Business.create({ owner: merchantId, name: "Shop", category: new mongoose.Types.ObjectId(), status: EnumBusinessStatus.APPROVED });
-  return Offer.create({ business: b._id, title: "Deal", endAt: new Date(Date.now() + 1e7), createdBy: merchantId, claimLimitPerUser: 1 });
+  // Claimable offers must be admin-approved (ACTIVE) — new offers default to
+  // PENDING, so set it explicitly here since this bypasses OfferService.createOffer.
+  return Offer.create({
+    business: b._id,
+    title: "Deal",
+    endAt: new Date(Date.now() + 1e7),
+    createdBy: merchantId,
+    claimLimitPerUser: 1,
+    status: EnumOfferStatus.ACTIVE,
+  });
 };
 
 describe("ClaimService", () => {

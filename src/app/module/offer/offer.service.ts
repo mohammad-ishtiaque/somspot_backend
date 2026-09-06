@@ -9,14 +9,22 @@ import Offer from "./Offer";
 import Business from "../business/Business";
 import Claim from "../claim/Claim";
 import Saved from "../saved/Saved";
+import OfferView from "./OfferView";
+import postNotification from "../../../util/postNotification";
 
-// Derived status, evaluated fresh on every read (never persisted): a manually
-// paused offer stays INACTIVE; otherwise a future startAt makes it SCHEDULED,
-// a past endAt makes it EXPIRED, and anything else is ACTIVE.
+// Derived status, evaluated fresh on every read (never persisted): an offer
+// still awaiting admin approval, rejected, or manually paused stays as-is;
+// otherwise a future startAt makes it SCHEDULED, a past endAt makes it
+// EXPIRED, and anything else is ACTIVE.
 const withDerivedStatus = <T extends { startAt?: Date; endAt: Date; status: string }>(
   offer: T,
 ): T => {
-  if (offer.status === EnumOfferStatus.INACTIVE) return offer;
+  if (
+    offer.status === EnumOfferStatus.INACTIVE ||
+    offer.status === EnumOfferStatus.PENDING ||
+    offer.status === EnumOfferStatus.REJECTED
+  )
+    return offer;
   const now = Date.now();
   if (offer.startAt && new Date(offer.startAt).getTime() > now)
     return { ...offer, status: EnumOfferStatus.SCHEDULED };
@@ -25,7 +33,14 @@ const withDerivedStatus = <T extends { startAt?: Date; endAt: Date; status: stri
   return { ...offer, status: EnumOfferStatus.ACTIVE };
 };
 
-type OfferStatusCounts = { active: number; scheduled: number; expired: number; inactive: number };
+type OfferStatusCounts = {
+  pending: number;
+  active: number;
+  scheduled: number;
+  expired: number;
+  inactive: number;
+  rejected: number;
+};
 
 // Filters/searches/paginates an already status-derived offer list in memory.
 // Needed because status here is computed, not a stored field the DB can filter on.
@@ -53,7 +68,7 @@ const countByStatus = (offers: { status: string }[]): OfferStatusCounts =>
       if (o.status in acc) acc[o.status as keyof OfferStatusCounts] += 1;
       return acc;
     },
-    { active: 0, scheduled: 0, expired: 0, inactive: 0 } as OfferStatusCounts,
+    { pending: 0, active: 0, scheduled: 0, expired: 0, inactive: 0, rejected: 0 } as OfferStatusCounts,
   );
 
 const assertOwnsBusiness = async (userData: AuthUserPayload, businessId: string) => {
@@ -183,6 +198,7 @@ const getTopDeals = async (query: QueryParams, userData?: AuthUserPayload) => {
 const getOffer = async (
   query: { offerId?: string; id?: string; _id?: string },
   userData?: AuthUserPayload,
+  viewerIp?: string,
 ) => {
   const targetOfferId = query.offerId || query.id || query._id;
   if (!targetOfferId) {
@@ -194,6 +210,24 @@ const getOffer = async (
     .lean();
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
   const derived = withDerivedStatus(offer);
+
+  const isOwnerOrAdmin =
+    !!userData &&
+    (isPrivileged(userData.role) || String(offer.createdBy) === userData.userId);
+
+  // Offers awaiting approval, rejected, or manually paused are only visible
+  // to their creator or an admin — not reachable by a shared/guessed offerId.
+  const heldBackStatuses: string[] = [EnumOfferStatus.PENDING, EnumOfferStatus.REJECTED, EnumOfferStatus.INACTIVE];
+  if (heldBackStatuses.includes(derived.status) && !isOwnerOrAdmin) {
+    throw new ApiError(status.NOT_FOUND, "Offer not found");
+  }
+
+  // Fire-and-forget: log real customer views for the admin Analytics page's
+  // Offer Engagement trend. Skip the creator/admin browsing their own offer
+  // so that doesn't inflate engagement numbers (mirrors BusinessView).
+  if (!isOwnerOrAdmin) {
+    OfferView.create({ offer: offer._id, viewer: userData?.userId, ip: viewerIp }).catch(() => {});
+  }
 
   let isClaimed = false;
   let claimCode: string | null = null;
@@ -280,20 +314,59 @@ const deleteOffer = async (userData: AuthUserPayload, payload: { offerId?: strin
 
 
 // Admin "Offers & Promotions" — all offers regardless of status. status filter
-// (active/scheduled/expired/inactive) is applied to the derived status, same
-// as the merchant list, since scheduled/expired are never stored values.
+// (pending/active/scheduled/expired/inactive/rejected) is applied to the
+// derived status, same as the merchant list, since scheduled/expired are
+// never stored values. Also surfaces the merchant (createdBy) name and each
+// offer's view count for the admin list/detail screens.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.business) base.business = query.business;
 
   const offers = await Offer.find(base)
-    .populate([{ path: "business", select: "name logo category" }])
+    .populate([
+      { path: "business", select: "name logo category" },
+      { path: "createdBy", select: "name email" },
+    ])
     .sort((query.sort || "").split(",").join(" ") || "-createdAt")
     .lean();
 
-  const derived = offers.map(withDerivedStatus);
+  const viewCounts = await OfferView.aggregate([
+    { $match: { offer: { $in: offers.map((o) => o._id) } } },
+    { $group: { _id: "$offer", count: { $sum: 1 } } },
+  ]);
+  const viewsByOffer = new Map(viewCounts.map((v) => [String(v._id), v.count]));
+
+  const derived = offers.map((o) => ({
+    ...withDerivedStatus(o),
+    views: viewsByOffer.get(String(o._id)) || 0,
+  }));
+  const counts = countByStatus(derived);
   const { meta, result } = paginateDerived(derived, query);
-  return { meta, result };
+  return { meta, result, counts };
+};
+
+// Admin approve/reject for a PENDING offer (Offers & Promotions moderation).
+// Approving sets ACTIVE (withDerivedStatus still shows SCHEDULED on read if
+// startAt is in the future); rejecting is a terminal REJECTED state — the
+// merchant can still edit + it stays hidden until deleted or resubmitted
+// via a fresh update.
+const adminModerate = async (payload: { offerId?: string; action?: string }) => {
+  validateFields(payload, ["offerId", "action"]);
+  const offer = await Offer.findById(payload.offerId).populate("business", "name");
+  if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
+
+  if (payload.action === "approve") {
+    offer.status = EnumOfferStatus.ACTIVE;
+    await offer.save();
+    postNotification("Offer Approved", `Your offer "${offer.title}" is now live.`, String(offer.createdBy));
+  } else if (payload.action === "reject") {
+    offer.status = EnumOfferStatus.REJECTED;
+    await offer.save();
+    postNotification("Offer Rejected", `Your offer "${offer.title}" was rejected by a moderator.`, String(offer.createdBy));
+  } else {
+    throw new ApiError(status.BAD_REQUEST, "action must be approve or reject");
+  }
+  return offer;
 };
 
 const OfferService = {
@@ -305,6 +378,7 @@ const OfferService = {
   updateOffer,
   deleteOffer,
   adminGetAll,
+  adminModerate,
 };
 
 export { OfferService };

@@ -38,6 +38,7 @@ const getAllPackages = async (query: QueryParams) => {
     contentType: p.contentType,
     duration: p.duration || "N/A",
     category: p.category?.name || "General",
+    categoryId: p.category?._id || null,
     price: p.price,
     currency: p.currency || "USD",
     status: p.status || "active",

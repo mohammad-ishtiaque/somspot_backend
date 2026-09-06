@@ -102,7 +102,33 @@ const getAllReviews = async (userData?: AuthUserPayload, query: QueryParams = {}
     };
   });
 
-  return { meta, result: enrichedResult };
+  // Stats over the FULL matched set (same scope as queryObj above), not just
+  // the current page — so dashboard cards don't have to be estimated from a
+  // single page of results. Aggregate doesn't auto-cast strings to ObjectId
+  // the way .find() does, so the "own reviews" match is cast explicitly.
+  const statsMatch = isPrivileged(userData.role)
+    ? {}
+    : { user: (await import("mongoose")).Types.ObjectId.createFromHexString(String(userData.userId)) };
+  const [statsAgg] = await Review.aggregate([
+    { $match: statsMatch },
+    {
+      $group: {
+        _id: null,
+        avgRating: { $avg: "$rating" },
+        visibleCount: { $sum: { $cond: [{ $eq: ["$moderationStatus", "visible"] }, 1, 0] } },
+        hiddenCount: { $sum: { $cond: [{ $eq: ["$moderationStatus", "hidden"] }, 1, 0] } },
+      },
+    },
+  ]);
+
+  const stats = {
+    total: meta.total,
+    avgRating: statsAgg ? Math.round(statsAgg.avgRating * 10) / 10 : 0,
+    visibleCount: statsAgg?.visibleCount ?? 0,
+    hiddenCount: statsAgg?.hiddenCount ?? 0,
+  };
+
+  return { meta, result: enrichedResult, stats };
 };
 
 const getBusinessReviews = async (query: QueryParams, userData?: AuthUserPayload) => {

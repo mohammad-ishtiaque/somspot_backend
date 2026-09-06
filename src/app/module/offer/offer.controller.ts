@@ -53,7 +53,7 @@ const getOffer = catchAsync(async (req: Request, res: Response) => {
     }
   }
 
-  const result = await OfferService.getOffer(req.query, user);
+  const result = await OfferService.getOffer(req.query, user, req.ip);
   sendResponse(res, { statusCode: 200, success: true, message: "Offer retrieved", data: result });
 });
 
@@ -98,6 +98,11 @@ const adminGetAll = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 200, success: true, message: "Offers retrieved", data: result });
 });
 
+const adminModerate = catchAsync(async (req: Request, res: Response) => {
+  const result = await OfferService.adminModerate(req.body);
+  sendResponse(res, { statusCode: 200, success: true, message: "Offer moderated", data: result });
+});
+
 const OfferController = {
   createOffer,
   getAllOffers,
@@ -107,6 +112,7 @@ const OfferController = {
   updateOffer,
   deleteOffer,
   adminGetAll,
+  adminModerate,
 };
 
 export { OfferController };

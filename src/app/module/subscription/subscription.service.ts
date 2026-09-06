@@ -8,7 +8,9 @@ import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 
 // Static plan catalogue shown on the merchant "Choose a Plan" screen. Real
 // pricing/products live in RevenueCat; this is display + productId mapping.
-const PLANS = [
+// Exported so other modules (e.g. merchant.service's admin detail screen) can
+// resolve a subscription's `productId` to a friendly plan name.
+export const PLANS = [
   {
     id: "somspot_pro_monthly",
     name: "Pro",

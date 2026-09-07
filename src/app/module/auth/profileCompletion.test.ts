@@ -18,7 +18,7 @@ describe("getProfileCompletion (Option C, strategy per role)", () => {
     const u = mkUser(EnumUserRole.MERCHANT);
     const r = await getProfileCompletion(u as any);
     expect(r.isProfileComplete).toBe(false);
-    expect(r.missing).toContain("business");
+    expect(r.missing).toContain("business.business");
   });
 
   it("MERCHANT exposes separate personal + business sections", async () => {
@@ -38,7 +38,9 @@ describe("getProfileCompletion (Option C, strategy per role)", () => {
   });
 
   it("CREATOR complete only after linking a social account", async () => {
+    const profile = await User.create({ authId: new mongoose.Types.ObjectId(), name: "C", email: "c@x.co", phoneNumber: "+252611111111" });
     const u = mkUser(EnumUserRole.CREATOR);
+    u.userId = String(profile._id);
     expect((await getProfileCompletion(u as any)).isProfileComplete).toBe(false);
     await Creator.create({ user: u.userId, socials: [{ platform: "tiktok", handle: "@x", verified: true }] });
     expect((await getProfileCompletion(u as any)).isProfileComplete).toBe(true);

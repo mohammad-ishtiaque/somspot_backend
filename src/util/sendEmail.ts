@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import config from "../config";
+import { logger } from "./logger";
 
 const currentDate = new Date();
 
@@ -14,11 +15,18 @@ const sendEmail = async (options: {
   subject: string;
   html: string;
 }) => {
+  if (!config.smtp.smtp_mail || !config.smtp.smtp_host) {
+    logger.warn(`SMTP credentials missing or host not set. Skipping email dispatch to ${options.email}`);
+    return;
+  }
+
+  const port = config.smtp.smtp_port ? parseInt(config.smtp.smtp_port, 10) : 587;
+
   const transporter = nodemailer.createTransport({
     host: config.smtp.smtp_host,
-    service: config.smtp.smtp_service,
-    port: parseInt(config.smtp.smtp_port),
-    secure: false, // true for port 465, false for other ports
+    service: config.smtp.smtp_service || undefined,
+    port: Number.isNaN(port) ? 587 : port,
+    secure: port === 465, // true for 465, false for other ports
     auth: {
       user: config.smtp.smtp_mail,
       pass: config.smtp.smtp_password,
@@ -28,15 +36,19 @@ const sendEmail = async (options: {
   const { email, subject, html } = options;
 
   const mailOptions = {
-    from: `${config.smtp.NAME} <${config.smtp.smtp_mail}>`,
+    from: `${config.smtp.NAME || "SomSpot"} <${config.smtp.smtp_mail}>`,
     to: email,
     date: formattedDate,
-    signed_by: "bdCalling.com",
+    signed_by: "SomSpot",
     subject,
     html,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (err) {
+    logger.error(`Error sending email to ${email}:`, err);
+  }
 };
 
 export { sendEmail };

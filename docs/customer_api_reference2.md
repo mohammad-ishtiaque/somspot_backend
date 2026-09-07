@@ -1021,6 +1021,215 @@
 
 ---
 
+### 5.6 Merchant Create Offer
+- **Route**: `POST {{baseUrl}}/offer/create`
+- **Auth**: Bearer `<MERCHANT_JWT_TOKEN>`
+- **Body Format**: 📸 **`multipart/form-data`**
+- **Form Data Fields**:
+  - `business` *(Text, required)*: Business ID (e.g. `"6a7965d5f792519d4eada806"`)
+  - `title` *(Text, required)*: `"20% Off Family Feast"`
+  - `endAt` *(Text/Date, required)*: `"2026-10-01T23:59:59.000Z"`
+  - `description` *(Text, optional)*: `"Special discount on family meals."`
+  - `discountLabel` *(Text, optional)*: `"20% OFF"`
+  - `terms` *(Text, optional)*: `"Valid for dine-in only."`
+  - `startAt` *(Text/Date, optional)*: `"2026-09-01T00:00:00.000Z"`
+  - `claimLimitPerUser` *(Number/Text, optional, default 1)*: `1`
+  - `estimatedValue` *(Number/Text, optional, default 0)*: `15`
+  - `offerImage` *(File, optional)*: Promotional banner image file (`.png`, `.jpg`)
+- **Success Response (`201 Created`)**:
+```json
+{
+  "statusCode": 201,
+  "success": true,
+  "message": "Offer created",
+  "data": {
+    "_id": "6a7965d5f792519d4eada809",
+    "business": "6a7965d5f792519d4eada806",
+    "title": "20% Off Family Feast",
+    "description": "Special discount on family meals.",
+    "discountLabel": "20% OFF",
+    "terms": "Valid for dine-in only.",
+    "startAt": "2026-09-01T00:00:00.000Z",
+    "endAt": "2026-10-01T23:59:59.000Z",
+    "status": "pending",
+    "claimLimitPerUser": 1,
+    "estimatedValue": 15,
+    "createdBy": "6a7965d4f792519d4eada800"
+  }
+}
+```
+
+---
+
+### 5.7 Merchant My Offers List
+- **Route**: `GET {{baseUrl}}/offer/my`
+- **Auth**: Bearer `<MERCHANT_JWT_TOKEN>`
+- **Query Filters**: `page=1`, `limit=10`, `status` *(optional: pending | active | scheduled | expired | inactive | rejected)*, `searchTerm` *(optional)*
+- **Description**: Returns all offers belonging to the logged-in merchant's businesses, along with derived statuses and status counts.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Your offers retrieved",
+  "data": {
+    "meta": { "page": 1, "limit": 10, "total": 2, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada809",
+        "title": "20% Off Family Feast",
+        "discountLabel": "20% OFF",
+        "status": "pending",
+        "business": {
+          "_id": "6a7965d5f792519d4eada806",
+          "name": "Hilib Macaan Restaurant",
+          "logo": "https://cdn.somspot.so/businesses/hilib_logo.png"
+        },
+        "startAt": "2026-09-01T00:00:00.000Z",
+        "endAt": "2026-10-01T23:59:59.000Z"
+      }
+    ],
+    "counts": {
+      "pending": 1,
+      "active": 1,
+      "scheduled": 0,
+      "expired": 0,
+      "inactive": 0,
+      "rejected": 0
+    }
+  }
+}
+```
+
+---
+
+### 5.8 Merchant Update Offer
+- **Route**: `PATCH {{baseUrl}}/offer/update`
+- **Auth**: Bearer `<MERCHANT_JWT_TOKEN>`
+- **Body Format**: 📸 **`multipart/form-data`** or `application/json`
+- **Form Data / Body Fields**:
+  - `offerId` / `id` / `_id` *(Text, required)*: `"6a7965d5f792519d4eada809"`
+  - `title` *(Text, optional)*: `"25% Off Super Family Feast"`
+  - `description` *(Text, optional)*: `"Updated deal description."`
+  - `discountLabel` *(Text, optional)*: `"25% OFF"`
+  - `terms` *(Text, optional)*: `"Dine-in or takeaway."`
+  - `endAt` *(Text/Date, optional)*: `"2026-10-15T23:59:59.000Z"`
+  - `offerImage` *(File, optional)*: Updated banner image file
+- **Note**: If a merchant updates a `rejected` offer, its status automatically resets back to `pending` so an admin can review it again.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Offer updated",
+  "data": {
+    "_id": "6a7965d5f792519d4eada809",
+    "title": "25% Off Super Family Feast",
+    "discountLabel": "25% OFF",
+    "status": "pending",
+    "updatedAt": "2026-09-07T15:30:00.000Z"
+  }
+}
+```
+
+---
+
+### 5.9 Merchant Delete Offer
+- **Route**: `DELETE {{baseUrl}}/offer/delete`
+- **Auth**: Bearer `<MERCHANT_JWT_TOKEN>`
+- **Query Params or Body**: `offerId` or `id` or `_id` *(required, e.g. `?offerId=6a7965d5f792519d4eada809` or `?id=6a7965d5f792519d4eada809`)*
+- **Description**: Allows merchants to delete their offers (especially pending or draft offers).
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Offer deleted",
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+---
+
+### 5.10 Admin Get All Offers
+- **Route**: `GET {{baseUrl}}/offer/admin/list`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Query Filters**: `page=1`, `limit=10`, `status` *(optional: pending | active | scheduled | expired | inactive | rejected)*, `business` *(optional)*, `searchTerm` *(optional)*
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Offers retrieved",
+  "data": {
+    "meta": { "page": 1, "limit": 10, "total": 3, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada809",
+        "title": "25% Off Super Family Feast",
+        "status": "pending",
+        "views": 42,
+        "business": {
+          "_id": "6a7965d5f792519d4eada806",
+          "name": "Hilib Macaan Restaurant"
+        },
+        "createdBy": {
+          "_id": "6a7965d4f792519d4eada800",
+          "name": "Abdul Merchant",
+          "email": "merchant@example.com"
+        }
+      }
+    ],
+    "counts": {
+      "pending": 1,
+      "active": 2,
+      "scheduled": 0,
+      "expired": 0,
+      "inactive": 0,
+      "rejected": 0
+    }
+  }
+}
+```
+
+---
+
+### 5.11 Admin Moderate Offer (Approve / Reject)
+- **Route**: `PATCH {{baseUrl}}/offer/admin/moderate`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Headers**: `Content-Type: application/json`
+- **Body Payload (Approve)**:
+```json
+{
+  "offerId": "6a7965d5f792519d4eada809",
+  "action": "approve"
+}
+```
+- **Body Payload (Reject)**:
+```json
+{
+  "offerId": "6a7965d5f792519d4eada809",
+  "action": "reject"
+}
+```
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Offer moderated",
+  "data": {
+    "_id": "6a7965d5f792519d4eada809",
+    "title": "25% Off Super Family Feast",
+    "status": "active"
+  }
+}
+```
+
+---
+
 ## 6. Reviews & Customer Ratings
 
 ### 6.1 Get Business Reviews (Reviews Tab)

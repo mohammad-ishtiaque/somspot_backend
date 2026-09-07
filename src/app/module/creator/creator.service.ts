@@ -128,12 +128,11 @@ const TASK_CAMPAIGN_POPULATE = {
 // share status "approved", distinguished only by `draftApproved`. This is
 // the same class of bug already fixed on the merchant Content tab (raw
 // status alone silently conflates two different UI states).
-const deriveTaskStage = (application: { status: string; draftApproved: boolean }) => {
+const deriveTaskStage = (application: { status: string; draftApproved?: boolean }) => {
   if (application.status === EnumTaskStatus.PUBLISHED) return "published";
   if (application.status === EnumTaskStatus.REJECTED) return "rejected";
   if (application.status === EnumTaskStatus.DRAFT_SUBMITTED) return "pending";
-  if (application.status === EnumTaskStatus.DRAFT_APPROVED) return "live";
-  if (application.status === EnumTaskStatus.VERIFYING) return "completed";
+  if (application.status === EnumTaskStatus.DRAFT_APPROVED || application.status === EnumTaskStatus.VERIFYING) return "completed";
   if (application.status === EnumTaskStatus.APPROVED) return "active";
   return application.status;
 };
@@ -149,7 +148,6 @@ const getMyTasks = async (userData: AuthUserPayload, query: QueryParams) => {
   const summary = {
     active: withStage.filter((t) => t.stage === "active").length,
     pending: withStage.filter((t) => t.stage === "pending").length,
-    live: withStage.filter((t) => t.stage === "live").length,
     completed: withStage.filter((t) => t.stage === "completed").length,
     published: withStage.filter((t) => t.stage === "published").length,
   };
@@ -385,14 +383,14 @@ const getDashboard = async (userData: AuthUserPayload) => {
   // status alone can't tell them apart, same derivation as GET /creator/tasks.
   const activeTasks = openTasksRaw
     .map((t: any) => ({ ...t, stage: deriveTaskStage(t) }))
-    .filter((t: any) => t.stage === "active" || t.stage === "pending" || t.stage === "live")
+    .filter((t: any) => t.stage === "active" || t.stage === "pending" || t.stage === "completed")
     .slice(0, 5)
     .map((t: any) => ({
       _id: t._id,
       businessName: t.campaign?.business?.name || null,
       campaignName: t.campaign?.name || null,
       stage: t.stage,
-      statusLabel: t.stage === "pending" ? "Pending merchant review" : t.stage === "live" ? "Ready to post on social" : "Ready for content",
+      statusLabel: t.stage === "pending" ? "Pending merchant review" : t.stage === "completed" ? "Ready to post on social" : "Ready for content",
       // The platform a not-yet-submitted task will target isn't captured
       // anywhere today (it's only set once the creator submits a draft) —
       // null here for "active" tasks is honest, not a bug.
@@ -541,7 +539,7 @@ const adminListCreators = async (query: QueryParams) => {
     result.map(async (c: any) => {
       const userId = c.user?._id;
       const [applications, earningsAgg] = await Promise.all([
-        CampaignApplication.find({ creator: userId }).select("status").lean(),
+        CampaignApplication.find({ creator: userId }).populate("campaign", "status").lean(),
         Earning.aggregate([
           { $match: { creator: userId } },
           { $group: { _id: null, total: { $sum: "$amount" } } },
@@ -551,9 +549,24 @@ const adminListCreators = async (query: QueryParams) => {
       const totalContent = applications.length;
       let approved = 0;
       let rejected = 0;
+      let pendingCount = 0;
+      let activeCount = 0;
+      let doneCount = 0;
+
       for (const app of applications as any[]) {
-        if (app.status === EnumTaskStatus.PUBLISHED) approved++;
-        else if (app.status === "rejected") rejected++;
+        if (app.status === EnumTaskStatus.PUBLISHED) {
+          approved++;
+          doneCount++;
+        } else if (app.status === "rejected") {
+          rejected++;
+        } else {
+          const campStatus = (app.campaign as any)?.status;
+          if (campStatus === EnumCampaignStatus.PENDING_REVIEW) {
+            pendingCount++;
+          } else if (campStatus === EnumCampaignStatus.LIVE || campStatus === EnumCampaignStatus.APPROVED) {
+            activeCount++;
+          }
+        }
       }
 
       const totalEarnings = earningsAgg[0]?.total || 0;
@@ -566,10 +579,13 @@ const adminListCreators = async (query: QueryParams) => {
         userId: userId,
         name: c.user?.name || "N/A",
         profile_image: c.user?.profile_image || null,
-        category: (c.category as any)?.name || "General",
+        category: c.category || null,
         totalContent,
         approved,
         rejected,
+        pendingCount,
+        activeCount,
+        doneCount,
         totalEarnings,
         status: creatorStatus,
         followerCount: c.followerCount || 0,

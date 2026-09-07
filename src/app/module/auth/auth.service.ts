@@ -73,7 +73,10 @@ const registrationAccount = async (payload: {
       user.activationCodeExpire = activationCodeExpire;
       await user.save();
 
-      EmailHelpers.sendOtpResendEmail(email, data, language);
+      logger.info(`[OTP] Activation code for ${email}: ${activationCode}`);
+      await EmailHelpers.sendOtpResendEmail(email, data, language).catch((err: any) =>
+        logger.error("Failed to send activation email:", err),
+      );
     }
 
     return {
@@ -82,8 +85,11 @@ const registrationAccount = async (payload: {
     };
   }
 
+  logger.info(`[OTP] Registration activation code for ${email}: ${activationCode}`);
   if (role !== EnumUserRole.ADMIN)
-    EmailHelpers.sendActivationEmail(email, data, language);
+    await EmailHelpers.sendActivationEmail(email, data, language).catch((err: any) =>
+      logger.error("Failed to send activation email:", err),
+    );
 
   const auth = await Auth.create(authData);
 
@@ -127,7 +133,10 @@ const resendActivationCode = async (payload: { email: string }) => {
     },
   );
 
-  EmailHelpers.sendOtpResendEmail(email, data, user.language);
+  logger.info(`[OTP] Resent activation code for ${email}: ${activationCode}`);
+  await EmailHelpers.sendOtpResendEmail(email, data, user.language).catch((err: any) =>
+    logger.error("Failed to send resend email:", err),
+  );
 };
 
 const activateAccount = async (payload: {
@@ -277,7 +286,10 @@ const forgotPass = async (payload: { email: string }) => {
     ),
   };
 
-  EmailHelpers.sendResetPasswordEmail(email, data, user.language);
+  logger.info(`[OTP] Password reset code for ${email}: ${verificationCode}`);
+  await EmailHelpers.sendResetPasswordEmail(email, data, user.language).catch((err: any) =>
+    logger.error("Failed to send reset password email:", err),
+  );
 };
 
 const forgetPassOtpVerify = async (payload: {

@@ -9,7 +9,8 @@ const corsOptions = {
       origin.startsWith("http://10.10.20.") ||
       origin.startsWith("http://3.76.70") ||
       origin.startsWith("http://localhost:5173") ||
-      origin.startsWith("http://localhost:3008")
+      origin.startsWith("http://localhost:3008") ||
+      origin.startsWith("https://hvkds8kb-3008.inc1.devtunnels.ms")
     ) {
       return callback(null, true);
     }

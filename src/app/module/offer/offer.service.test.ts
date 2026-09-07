@@ -139,4 +139,29 @@ describe("OfferService", () => {
     expect(allOffers[0].isClaimed).toBe(true);
     expect(allOffers[0].claimCode).toBe(claim.code);
   });
+
+  it("allows a merchant to update their offer and resets rejected offers to pending for re-review", async () => {
+    const b = await makeBusiness();
+    const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "Original Title", endAt: future });
+    
+    // Admin rejects offer
+    await OfferService.adminModerate({ offerId: String(offer._id), action: "reject" });
+    const rejected = await OfferService.getOffer({ offerId: String(offer._id) }, merchant as any);
+    expect(rejected.status).toBe(EnumOfferStatus.REJECTED);
+
+    // Merchant updates offer
+    const updated = await OfferService.updateOffer(merchant as any, { id: String(offer._id), title: "Updated Title" });
+    expect(updated.title).toBe("Updated Title");
+    expect(updated.status).toBe(EnumOfferStatus.PENDING);
+  });
+
+  it("allows a merchant to delete their pending offer", async () => {
+    const b = await makeBusiness();
+    const offer = await OfferService.createOffer(merchant as any, { business: String(b._id), title: "To Delete", endAt: future });
+
+    const deleteRes = await OfferService.deleteOffer(merchant as any, { id: String(offer._id) });
+    expect(deleteRes.deleted).toBe(true);
+
+    await expect(OfferService.getOffer({ offerId: String(offer._id) }, merchant as any)).rejects.toThrow(/not found/i);
+  });
 });

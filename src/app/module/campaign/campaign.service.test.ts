@@ -8,6 +8,7 @@ import Auth from "../auth/Auth";
 import User from "../user/User";
 import Category from "../category/Category";
 import { CreatorService } from "../creator/creator.service";
+import Offer from "../offer/Offer";
 import { EnumBusinessStatus, EnumCampaignStatus, EnumCategoryType, EnumSubscriptionStatus, EnumUserRole } from "../../../util/enum";
 
 beforeAll(connectTestDb);
@@ -57,7 +58,7 @@ describe("CampaignService", () => {
     expect(app.commissionAmount).toBe(7); // 30s tier
 
     const approved = await CampaignService.reviewCampaign({ campaignId: String(c._id), action: "approve" });
-    expect(approved.status).toBe(EnumCampaignStatus.LIVE);
+    expect(approved.status).toBe(EnumCampaignStatus.APPROVED);
   });
 
   it("blocks approval until every required creator slot is filled", async () => {
@@ -130,11 +131,15 @@ describe("CampaignService", () => {
     await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Pending One" });
     await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Pending Two" });
 
-    // "Approved" — fully staffed and approved to live.
+    // "Approved" / "Live" — fully staffed, approved by admin, creator post published & verified.
     const approved = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Sunset Coffee Promotion", targetCreators: 1 });
     const creatorId = await createCreatorAuth();
-    await CampaignService.assignCreator({ campaignId: String(approved._id), creatorUserId: creatorId });
+    const app = await CampaignService.assignCreator({ campaignId: String(approved._id), creatorUserId: creatorId });
     await CampaignService.reviewCampaign({ campaignId: String(approved._id), action: "approve" });
+    await CreatorService.submitDraft({ userId: creatorId, role: EnumUserRole.CREATOR } as any, { applicationId: String(app._id), draftVideoUrl: "https://cdn.somspot.so/draft.mp4" });
+    await CampaignService.reviewDraft(merchant as any, { applicationId: String(app._id), action: "approve" });
+    await CreatorService.submitPostUrl({ userId: creatorId, role: EnumUserRole.CREATOR } as any, { applicationId: String(app._id), postUrl: "https://tiktok.com/@c/v1" });
+    await CampaignService.verifyPublication(merchant as any, { applicationId: String(app._id), action: "approve" });
 
     const all = await CampaignService.getMyCampaigns(merchant as any, {});
     expect(all.result).toHaveLength(3);
@@ -155,7 +160,7 @@ describe("CampaignService", () => {
     // A status value that doesn't exist (e.g. the FE naively sending
     // "approved" literally) correctly matches nothing rather than silently
     // returning everything.
-    const bogus = await CampaignService.getMyCampaigns(merchant as any, { status: "approved" });
+    const bogus = await CampaignService.getMyCampaigns(merchant as any, { status: "bogus_status" });
     expect(bogus.result).toHaveLength(0);
   });
 
@@ -177,8 +182,13 @@ describe("CampaignService", () => {
 
     // Active — live and within its date window.
     const active = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Ramadan Grocery Deals", targetCreators: 1, startDate: new Date(Date.now() - DAY), endDate: new Date(Date.now() + DAY) });
-    await CampaignService.assignCreator({ campaignId: String(active._id), creatorUserId: await createCreatorAuth() });
+    const activeCreatorId = await createCreatorAuth();
+    const activeApp = await CampaignService.assignCreator({ campaignId: String(active._id), creatorUserId: activeCreatorId });
     await CampaignService.reviewCampaign({ campaignId: String(active._id), action: "approve" });
+    await CreatorService.submitDraft({ userId: activeCreatorId, role: EnumUserRole.CREATOR } as any, { applicationId: String(activeApp._id), draftVideoUrl: "https://cdn.somspot.so/draft.mp4" });
+    await CampaignService.reviewDraft(merchant as any, { applicationId: String(activeApp._id), action: "approve" });
+    await CreatorService.submitPostUrl({ userId: activeCreatorId, role: EnumUserRole.CREATOR } as any, { applicationId: String(activeApp._id), postUrl: "https://tiktok.com/@c/v2" });
+    await CampaignService.verifyPublication(merchant as any, { applicationId: String(activeApp._id), action: "approve" });
 
     // Rejected.
     const rejected = await CampaignService.createCampaign(merchant as any, { business: String(b._id), name: "Summer Beauty Collection", targetCreators: 1 });
@@ -308,7 +318,7 @@ describe("CampaignService", () => {
     expect(names).toEqual(["AlreadyReviewed", "PendingReview"]);
 
     const reviewedRow = contentTab.result.find((r: any) => r.creator.name === "AlreadyReviewed") as any;
-    expect(reviewedRow.status).toBe("approved"); // reverted, but still correctly included
+    expect(reviewedRow.status).toBe("draft_approved");
     expect(reviewedRow.draftVideoUrl).toBe("https://cdn.somspot.so/reviewed.mp4");
   });
 
@@ -340,5 +350,25 @@ describe("CampaignService", () => {
     const row = list.result.find((r: any) => r.name === "Ramadan Fashion Campaign") as any;
     expect(row.business.category.name).toBe("Fashion");
     expect(row.merchant.name).toBe("Style House");
+  });
+
+  it("rejects campaign creation if campaign endDate exceeds the linked offer's valid end date", async () => {
+    const b = await setupEntitledMerchant();
+    const offer = await Offer.create({
+      business: b._id,
+      title: "10th Sept Deal",
+      endAt: new Date("2026-09-10T23:59:59.000Z"),
+      createdBy: merchant.userId,
+    });
+
+    await expect(
+      CampaignService.createCampaign(merchant as any, {
+        business: String(b._id),
+        name: "Violating Campaign",
+        offer: String(offer._id),
+        startDate: "2026-09-01",
+        endDate: "2026-09-13",
+      }),
+    ).rejects.toThrow(/exceeds the linked offer's expiration date/i);
   });
 });

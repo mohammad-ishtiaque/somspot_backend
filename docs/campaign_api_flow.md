@@ -214,7 +214,7 @@ Body: raw JSON (no file upload)
 | `influencerCategory` | no | a creator-type Category id (validated) |
 | `targetCreators` | no | default `1` |
 | `videoLengthSec` | no | `20` ($5) · `30` ($7, default) · `45` ($10) · `60` ($15) per creator |
-| `startDate` / `endDate` | no | ISO date |
+| `startDate` / `endDate` | no | ISO date — ⚠️ if `offer` is linked, `endDate` cannot exceed the offer's `endAt` date (returns `400` validation error if violated) |
 | `contentRequirements` | no | free text |
 | `invitedCreator` | no | a User id — just a note of who the merchant has in mind; does **not** assign them |
 | `offer` | no | link to an existing Offer id |

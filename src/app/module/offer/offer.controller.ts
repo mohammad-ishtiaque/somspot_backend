@@ -65,13 +65,15 @@ const getMyOffers = catchAsync(async (req: Request, res: Response) => {
 
 const updateOffer = catchAsync(async (req: Request, res: Response) => {
   if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
-  const result = await OfferService.updateOffer(req.user, req.body);
+  const payload = buildOfferPayload(req);
+  const result = await OfferService.updateOffer(req.user, payload);
   sendResponse(res, { statusCode: 200, success: true, message: "Offer updated", data: result });
 });
 
 const deleteOffer = catchAsync(async (req: Request, res: Response) => {
   if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
-  const result = await OfferService.deleteOffer(req.user, req.query);
+  const payload = { ...req.query, ...req.body };
+  const result = await OfferService.deleteOffer(req.user, payload);
   sendResponse(res, { statusCode: 200, success: true, message: "Offer deleted", data: result });
 });
 

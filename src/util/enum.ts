@@ -80,6 +80,7 @@ const EnumClaimStatus = {
 // or complete a live campaign; admin can reject a pending one.
 const EnumCampaignStatus = {
   PENDING_REVIEW: "pending_review",
+  APPROVED: "approved",
   LIVE: "live",
   REJECTED: "rejected",
   PAUSED: "paused",

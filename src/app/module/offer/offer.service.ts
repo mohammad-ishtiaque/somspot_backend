@@ -292,20 +292,28 @@ const getMyOffers = async (userData: AuthUserPayload, query: QueryParams) => {
 };
 
 const updateOffer = async (userData: AuthUserPayload, payload: Record<string, any>) => {
-  validateFields(payload, ["offerId"]);
-  const offer = await Offer.findById(payload.offerId);
+  const targetOfferId = payload.offerId || payload.id || payload._id;
+  if (!targetOfferId) throw new ApiError(status.BAD_REQUEST, "offerId is required");
+  const offer = await Offer.findById(targetOfferId);
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
   await assertOwnsBusiness(userData, String(offer.business));
 
   const fields = ["title", "description", "offerImage", "discountLabel", "terms", "startAt", "endAt", "status", "claimLimitPerUser", "estimatedValue"];
   for (const f of fields) if (payload[f] !== undefined) (offer as any)[f] = payload[f];
+
+  // If a merchant updates a REJECTED offer, reset it to PENDING for admin review
+  if (!isPrivileged(userData.role) && offer.status === EnumOfferStatus.REJECTED) {
+    offer.status = EnumOfferStatus.PENDING;
+  }
+
   await offer.save();
   return offer;
 };
 
-const deleteOffer = async (userData: AuthUserPayload, payload: { offerId?: string }) => {
-  validateFields(payload, ["offerId"]);
-  const offer = await Offer.findById(payload.offerId);
+const deleteOffer = async (userData: AuthUserPayload, payload: { offerId?: string; id?: string; _id?: string }) => {
+  const targetOfferId = payload.offerId || payload.id || payload._id;
+  if (!targetOfferId) throw new ApiError(status.BAD_REQUEST, "offerId is required");
+  const offer = await Offer.findById(targetOfferId);
   if (!offer) throw new ApiError(status.NOT_FOUND, "Offer not found");
   await assertOwnsBusiness(userData, String(offer.business));
   await offer.deleteOne();

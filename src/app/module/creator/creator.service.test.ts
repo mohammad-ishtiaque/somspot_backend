@@ -129,6 +129,7 @@ describe("CreatorService", () => {
       { userId: String(completedCampaign.merchant), role: EnumUserRole.MERCHANT } as any,
       { applicationId: String((completedApp as any)._id), action: "approve" },
     );
+    await CreatorService.submitPostUrl(creator as any, { applicationId: String((completedApp as any)._id), postUrl: "https://tiktok.com/@b/123" });
 
     await Earning.create({ creator: creator.userId, campaign: activeCampaign._id, application: new mongoose.Types.ObjectId(), amount: 30, status: "paid" });
     await Payout.create({ creator: creator.userId, amount: 10, status: EnumPayoutStatus.PENDING });
@@ -339,7 +340,7 @@ describe("CreatorService", () => {
     const pendingApp = await CampaignService.assignCreator({ campaignId: String(pendingCampaign._id), creatorUserId: creator.userId } as any);
     await CreatorService.submitDraft(creator as any, { applicationId: String((pendingApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/a.mp4" });
 
-    // Completed: draft approved by merchant, same raw status "approved" as Active — must NOT be classified as Active.
+    // Completed: draft approved by merchant -> "completed" (ready to post link / verifying).
     const completedCampaign = await makePendingCampaign();
     const completedApp = await CampaignService.assignCreator({ campaignId: String(completedCampaign._id), creatorUserId: creator.userId } as any);
     await CreatorService.submitDraft(creator as any, { applicationId: String((completedApp as any)._id), draftVideoUrl: "https://cdn.somspot.so/b.mp4" });

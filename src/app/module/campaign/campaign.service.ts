@@ -11,6 +11,7 @@ import Auth from "../auth/Auth";
 import User from "../user/User";
 import Category from "../category/Category";
 import Creator from "../creator/Creator";
+import Offer from "../offer/Offer";
 import CampaignApplication from "../creator/CampaignApplication";
 import Earning from "../creator/Earning";
 import { SubscriptionService } from "../subscription/subscription.service";
@@ -19,6 +20,44 @@ import { SubscriptionService } from "../subscription/subscription.service";
 // Not merchant-editable — always derived from videoLengthSec.
 const VIDEO_LENGTH_PRICE: Record<number, number> = { 20: 5, 30: 7, 45: 10, 60: 15 };
 const priceForVideoLength = (sec: number): number => VIDEO_LENGTH_PRICE[sec] ?? VIDEO_LENGTH_PRICE[30];
+
+const formatDateStr = (date: Date | string | number) => {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+const assertOfferDateCompliance = async (
+  offerId: unknown,
+  campaignStartDate?: Date | string | null,
+  campaignEndDate?: Date | string | null,
+) => {
+  if (!offerId) return;
+  const offerDoc = await Offer.findById(offerId).select("title startAt endAt");
+  if (!offerDoc) return;
+
+  if (campaignEndDate && offerDoc.endAt) {
+    const cEnd = new Date(campaignEndDate).getTime();
+    const oEnd = new Date(offerDoc.endAt).getTime();
+    if (!isNaN(cEnd) && !isNaN(oEnd) && cEnd > oEnd) {
+      throw new ApiError(
+        status.BAD_REQUEST,
+        `Campaign end date (${formatDateStr(campaignEndDate)}) exceeds the linked offer's expiration date (${formatDateStr(offerDoc.endAt)}).`,
+      );
+    }
+  }
+
+  if (campaignStartDate && offerDoc.startAt) {
+    const cStart = new Date(campaignStartDate).getTime();
+    const oStart = new Date(offerDoc.startAt).getTime();
+    if (!isNaN(cStart) && !isNaN(oStart) && cStart < oStart) {
+      throw new ApiError(
+        status.BAD_REQUEST,
+        `Campaign start date (${formatDateStr(campaignStartDate)}) cannot be earlier than the linked offer's start date (${formatDateStr(offerDoc.startAt)}).`,
+      );
+    }
+  }
+};
 
 const assertOwnsCampaign = async (userData: AuthUserPayload, campaignId: string) => {
   const campaign = await Campaign.findById(campaignId);
@@ -33,7 +72,7 @@ const assertOwnsCampaign = async (userData: AuthUserPayload, campaignId: string)
 // filtered by type (see Category.ts / EnumCategoryType).
 const assertCreatorCategory = async (categoryId: unknown) => {
   if (!categoryId) return;
-  const category = await Category.findOne({ _id: categoryId, type: EnumCategoryType.CREATOR }).select("_id");
+  const category = await Category.findById(categoryId).select("_id");
   if (!category) throw new ApiError(status.BAD_REQUEST, "Invalid influencer category");
 };
 
@@ -50,6 +89,7 @@ const createCampaign = async (userData: AuthUserPayload, payload: Record<string,
   if (!isPrivileged(userData.role) && String(business.owner) !== userData.userId)
     throw new ApiError(status.FORBIDDEN, "Not your business");
   await assertCreatorCategory(payload.influencerCategory);
+  await assertOfferDateCompliance(payload.offer, payload.startDate, payload.endDate);
 
   const videoLengthSec = payload.videoLengthSec ?? 30;
 
@@ -113,6 +153,9 @@ const buildCampaignStats = (
   const submittedContentCount = applications.filter((a) =>
     [EnumTaskStatus.DRAFT_SUBMITTED, EnumTaskStatus.DRAFT_APPROVED, EnumTaskStatus.VERIFYING, EnumTaskStatus.PUBLISHED].includes(a.status),
   ).length;
+  const approvedContentCount = applications.filter((a) =>
+    [EnumTaskStatus.DRAFT_APPROVED, EnumTaskStatus.VERIFYING, EnumTaskStatus.PUBLISHED].includes(a.status),
+  ).length;
   const publishedCount = applications.filter((a) => a.status === EnumTaskStatus.PUBLISHED).length;
   const daysLeft = campaign.endDate
     ? Math.max(Math.ceil((new Date(campaign.endDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000)), 0)
@@ -123,7 +166,7 @@ const buildCampaignStats = (
     { stage: "submitted", done: true },
     { stage: "admin_approval", done: campaign.status !== EnumCampaignStatus.PENDING_REVIEW },
     { stage: "influencers_assigned", done: assignedCount > 0 && assignedCount >= campaign.targetCreators },
-    { stage: "content_review", done: assignedCount > 0 && submittedContentCount >= assignedCount },
+    { stage: "content_review", done: assignedCount > 0 && approvedContentCount >= assignedCount },
     { stage: "published", done: assignedCount > 0 && publishedCount >= assignedCount },
   ];
   let currentMarked = false;
@@ -162,7 +205,7 @@ const getMyCampaigns = async (userData: AuthUserPayload, query: QueryParams) => 
   );
 
   const [active, inReview] = await Promise.all([
-    Campaign.countDocuments({ merchant: userData.userId, status: EnumCampaignStatus.LIVE }),
+    Campaign.countDocuments({ merchant: userData.userId, status: { $in: [EnumCampaignStatus.LIVE, EnumCampaignStatus.APPROVED] } }),
     Campaign.countDocuments({ merchant: userData.userId, status: EnumCampaignStatus.PENDING_REVIEW }),
   ]);
 
@@ -197,7 +240,10 @@ const getCampaign = async (userData: AuthUserPayload, query: { campaignId?: stri
 const updateCampaign = async (userData: AuthUserPayload, payload: Record<string, any>) => {
   validateFields(payload, ["campaignId"]);
   const campaign = await assertOwnsCampaign(userData, String(payload.campaignId));
-  if (payload.influencerCategory !== undefined) await assertCreatorCategory(payload.influencerCategory);
+  const targetOfferId = payload.offer !== undefined ? payload.offer : campaign.offer;
+  const targetStartDate = payload.startDate !== undefined ? payload.startDate : campaign.startDate;
+  const targetEndDate = payload.endDate !== undefined ? payload.endDate : campaign.endDate;
+  await assertOfferDateCompliance(targetOfferId, targetStartDate, targetEndDate);
 
   const fields = ["name", "about", "goal", "objective", "contentType", "influencerCategory", "startDate", "endDate", "contentRequirements", "invitedCreator", "videoLengthSec", "targetCreators", "offer"];
   for (const f of fields) if (payload[f] !== undefined) (campaign as any)[f] = payload[f];
@@ -237,7 +283,7 @@ const reviewCampaign = async (payload: { campaignId?: string; action?: string; r
         status.BAD_REQUEST,
         `Assign all ${campaign.targetCreators} required creators before approving`,
       );
-    campaign.status = EnumCampaignStatus.LIVE;
+    campaign.status = EnumCampaignStatus.APPROVED;
     campaign.rejectionReason = undefined;
   } else if (payload.action === "reject") {
     campaign.status = EnumCampaignStatus.REJECTED;
@@ -511,6 +557,12 @@ const verifyPublication = async (
       amount: application.commissionAmount,
       status: "available",
     });
+
+    // Campaign transitions to LIVE once publication is verified & approved by merchant
+    await Campaign.updateOne(
+      { _id: application.campaign },
+      { $set: { status: EnumCampaignStatus.LIVE } },
+    );
   } else if (payload.action === "reject") {
     application.status = EnumTaskStatus.REJECTED;
     await application.save();

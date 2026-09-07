@@ -3,12 +3,15 @@ import { isPrivileged } from "../../../util/authz";
 import ApiError from "../../../error/ApiError";
 import QueryBuilder, { QueryParams } from "../../../builder/queryBuilder";
 import validateFields from "../../../util/validateFields";
-import { EnumBusinessStatus, EnumUserRole } from "../../../util/enum";
+import { EnumBusinessStatus, EnumUserRole, EnumOfferStatus } from "../../../util/enum";
 import { AuthUserPayload } from "../../../types/auth.types";
 import Business from "./Business";
 import BusinessView from "./BusinessView";
 import User from "../user/User";
 import Saved from "../saved/Saved";
+import Offer from "../offer/Offer";
+import Review from "../review/Review";
+import Claim from "../claim/Claim";
 const tzlookup = require("tz-lookup");
 
 // Resolve an IANA timezone dynamically: an explicit value wins; otherwise
@@ -365,9 +368,7 @@ const deleteBusiness = async (userData: AuthUserPayload, payload: { businessId?:
 };
 
 
-// Admin "Business Listings" — all businesses regardless of status. Also
-// surfaces each business's view count (from BusinessView) for the list/detail
-// screens, same as offer.service's adminGetAll does for offers.
+// Admin "Business Listings" — all businesses regardless of status.
 const adminGetAll = async (query: QueryParams) => {
   const base: Record<string, unknown> = {};
   if (query.status) base.status = query.status;
@@ -376,25 +377,80 @@ const adminGetAll = async (query: QueryParams) => {
   const { meta, result } = await new QueryBuilder(
     Business.find(base)
       .populate([
-        { path: "category", select: "name slug" },
-        { path: "owner", select: "name email" },
+        { path: "category", select: "name slug icon" },
+        {
+          path: "owner",
+          select: "name email phoneNumber profile_image authId",
+          populate: { path: "authId", select: "email phoneNumber isBlocked" },
+        },
       ])
       .lean(),
     query,
   ).execute(["name"]);
+  return { meta, result };
+};
 
-  const viewCounts = await BusinessView.aggregate([
-    { $match: { business: { $in: result.map((b) => b._id) } } },
-    { $group: { _id: "$business", count: { $sum: 1 } } },
+// Admin "Get Business Details" — full info, owner, offers, reviews, analytics
+const adminGetBusinessDetails = async (query: { businessId?: string; id?: string }) => {
+  const targetId = query.businessId || query.id;
+  if (!targetId) throw new ApiError(status.BAD_REQUEST, "businessId is required");
+
+  const business = await Business.findById(targetId)
+    .populate([
+      { path: "category", select: "name slug icon" },
+      {
+        path: "owner",
+        select: "name email phoneNumber profile_image authId createdAt",
+        populate: { path: "authId", select: "email phoneNumber isBlocked" },
+      },
+    ])
+    .lean();
+
+  if (!business) throw new ApiError(status.NOT_FOUND, "Business not found");
+
+  const ownerObj: any = business.owner || {};
+
+  const [offers, reviews, totalViews, activeOffersCount, totalClaims, reviewsCount] = await Promise.all([
+    Offer.find({ business: business._id }).lean(),
+    Review.find({ business: business._id })
+      .populate({ path: "user", select: "name profile_image email" })
+      .lean(),
+    BusinessView.countDocuments({ business: business._id }),
+    Offer.countDocuments({ business: business._id, status: EnumOfferStatus.ACTIVE }),
+    Claim.countDocuments({ business: business._id }),
+    Review.countDocuments({ business: business._id }),
   ]);
-  const viewsByBusiness = new Map(viewCounts.map((v) => [String(v._id), v.count]));
 
-  const enrichedResult = result.map((b) => ({
-    ...b,
-    views: viewsByBusiness.get(String(b._id)) || 0,
-  }));
+  const ownerInformation = {
+    _id: ownerObj._id || null,
+    ownerName: ownerObj.name || "",
+    email: ownerObj.email || ownerObj.authId?.email || "",
+    phone: ownerObj.phoneNumber || ownerObj.authId?.phoneNumber || "",
+    avatar: ownerObj.profile_image || "",
+    createdAt: ownerObj.createdAt || null,
+  };
 
-  return { meta, result: enrichedResult };
+  return {
+    ...withOpen(business),
+    businessId: String(business._id),
+    businessName: business.name,
+    ownerInformation,
+    offers: offers.map((o: any) => ({
+      ...o,
+      offerId: String(o._id),
+    })),
+    reviews: reviews.map((r: any) => ({
+      ...r,
+      reviewId: String(r._id),
+      review: r.comment,
+    })),
+    analytics: {
+      totalViews,
+      activeOffersCount,
+      totalClaims,
+      reviewsCount,
+    },
+  };
 };
 
 const BusinessService = {
@@ -407,6 +463,8 @@ const BusinessService = {
   verifyBusiness,
   deleteBusiness,
   adminGetAll,
+  adminGetBusinessDetails,
 };
 
 export { BusinessService };
+

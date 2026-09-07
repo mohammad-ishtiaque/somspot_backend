@@ -12,17 +12,11 @@ const postReview = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 201, success: true, message: "Review posted", data: result });
 });
 
-const getAllReviews = catchAsync(async (req: Request, res: Response) => {
-  if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
-  const result = await ReviewService.getAllReviews(req.user, req.query as QueryParams);
-  sendResponse(res, { statusCode: 200, success: true, message: "Reviews retrieved", data: result });
-});
-
 import config from "../../../config";
 import { jwtHelpers } from "../../../util/jwtHelpers";
 import { AuthUserPayload } from "../../../types/auth.types";
 
-const getBusinessReviews = catchAsync(async (req: Request, res: Response) => {
+const extractOptionalUser = (req: Request): AuthUserPayload | undefined => {
   let user = req.user;
   if (!user && req.headers.authorization?.startsWith("Bearer ")) {
     try {
@@ -34,7 +28,17 @@ const getBusinessReviews = catchAsync(async (req: Request, res: Response) => {
       /* ignore invalid token in optional route */
     }
   }
+  return user;
+};
 
+const getAllReviews = catchAsync(async (req: Request, res: Response) => {
+  const user = extractOptionalUser(req);
+  const result = await ReviewService.getAllReviews(user, req.query as QueryParams);
+  sendResponse(res, { statusCode: 200, success: true, message: "Reviews retrieved", data: result });
+});
+
+const getBusinessReviews = catchAsync(async (req: Request, res: Response) => {
+  const user = extractOptionalUser(req);
   const result = await ReviewService.getBusinessReviews(req.query as QueryParams, user);
   sendResponse(res, { statusCode: 200, success: true, message: "Business reviews retrieved", data: result });
 });
@@ -46,8 +50,8 @@ const toggleHelpful = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getReview = catchAsync(async (req: Request, res: Response) => {
-  if (!req.user) throw new ApiError(status.UNAUTHORIZED, "Unauthorized");
-  const result = await ReviewService.getReview(req.user, req.query);
+  const user = extractOptionalUser(req);
+  const result = await ReviewService.getReview(user, req.query);
   sendResponse(res, { statusCode: 200, success: true, message: "Review retrieved", data: result });
 });
 

@@ -753,7 +753,8 @@
 ### 5.1 Get All Business Listings (Approved / Pending / Rejected)
 - **Route**: `GET {{baseUrl}}/business/admin/list`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
-- **Query Filters**: `page=1`, `limit=10`, `status=pending` *(optional: pending | approved | rejected)*
+- **Query Filters**: `page=1`, `limit=10`, `status=pending` *(optional: pending | approved | rejected)*, `searchTerm=coffee` *(optional)*
+- **Description**: Returns all business listings with owner contact info, rating stats, active offers count, claims count, and total views.
 - **Success Response (`200 OK`)**:
 ```json
 {
@@ -765,18 +766,23 @@
     "result": [
       {
         "_id": "6a7965d5f792519d4eada806",
+        "businessId": "6a7965d5f792519d4eada806",
         "name": "Banaadir Coffee House",
-        "owner": {
-          "name": "Omar Jama",
-          "email": "omar@banaadir.so"
-        },
-        "category": {
-          "name": "Cafes & Coffee"
-        },
-        "address": "Liido Beach Road, Mogadishu",
+        "businessName": "Banaadir Coffee House",
+        "ownerName": "Omar Jama",
+        "ownerEmail": "omar@banaadir.so",
+        "phone": "+252 61 123 4567",
+        "category": "Cafes & Coffee",
         "status": "pending",
+        "ratingAvg": 4.8,
+        "ratingCount": 24,
+        "activeOffersCount": 3,
+        "claimsCount": 45,
+        "viewsCount": 1234,
+        "submittedDate": "2026-08-18T10:15:30.000Z",
+        "createdAt": "2026-08-18T10:15:30.000Z",
         "logo": "https://cdn.somspot.so/businesses/banaadir_logo.png",
-        "createdAt": "2026-08-18T10:15:30.000Z"
+        "address": "Liido Beach Road, Mogadishu"
       }
     ]
   }
@@ -785,7 +791,89 @@
 
 ---
 
-### 5.2 Approve or Reject Business Submission
+### 5.2 Get Business Details (Full Info, Owner, Offers, Reviews, Analytics)
+- **Route**: `GET {{baseUrl}}/business/admin/details` OR `GET {{baseUrl}}/business/admin/get` OR `GET {{baseUrl}}/business/get-detail`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
+- **Query Filters**: `businessId=6a7965d5f792519d4eada806`
+- **Description**: Returns complete detailed information for a business including owner information, active/all promotional offers, customer reviews, and analytics summary.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Business details retrieved",
+  "data": {
+    "_id": "6a7965d5f792519d4eada806",
+    "businessId": "6a7965d5f792519d4eada806",
+    "name": "Banaadir Coffee House",
+    "businessName": "Banaadir Coffee House",
+    "description": "Premium coffee and traditional Somali pastries.",
+    "address": "Liido Beach Road, Mogadishu",
+    "phone": "+252 61 123 4567",
+    "whatsapp": "+252 61 123 4567",
+    "status": "approved",
+    "rejectionReason": null,
+    "ratingAvg": 4.8,
+    "ratingCount": 24,
+    "logo": "https://cdn.somspot.so/businesses/banaadir_logo.png",
+    "coverImage": "https://cdn.somspot.so/businesses/banaadir_cover.jpg",
+    "gallery": [],
+    "createdAt": "2026-08-18T10:15:30.000Z",
+    "category": {
+      "_id": "6a7965d4f792519d4eada7fe",
+      "name": "Cafes & Coffee",
+      "slug": "cafes-coffee"
+    },
+    "ownerInformation": {
+      "_id": "6a7965d4f792519d4eada809",
+      "ownerName": "Omar Jama",
+      "email": "omar@banaadir.so",
+      "phone": "+252 61 123 4567",
+      "avatar": "https://cdn.somspot.so/profiles/omar.png",
+      "createdAt": "2026-08-10T00:00:00.000Z"
+    },
+    "offers": [
+      {
+        "_id": "6a7965d5f792519d4eada808",
+        "offerId": "6a7965d5f792519d4eada808",
+        "title": "20% Off Cappuccino",
+        "description": "Get 20% off all hot drinks",
+        "discountPercentage": 20,
+        "code": "SOM-CAP20",
+        "status": "active",
+        "claimedCount": 15
+      }
+    ],
+    "reviews": [
+      {
+        "_id": "6a7965d5f792519d4eada80d",
+        "reviewId": "6a7965d5f792519d4eada80d",
+        "rating": 5,
+        "comment": "Best coffee in Mogadishu!",
+        "review": "Best coffee in Mogadishu!",
+        "helpfulCount": 12,
+        "moderationStatus": "visible",
+        "createdAt": "2026-08-15T00:00:00.000Z",
+        "user": {
+          "_id": "6a7965d4f792519d4eada800",
+          "name": "Ahmed Hassan",
+          "profile_image": "https://cdn.somspot.so/profiles/ahmed.png"
+        }
+      }
+    ],
+    "analytics": {
+      "totalViews": 1234,
+      "activeOffersCount": 1,
+      "totalClaims": 15,
+      "reviewsCount": 24
+    }
+  }
+}
+```
+
+---
+
+### 5.3 Approve or Reject Business Submission
 - **Route**: `PATCH {{baseUrl}}/business/verify`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
 - **Headers**: `Content-Type: application/json`
@@ -980,9 +1068,104 @@
 
 ---
 
-## 8. Review Moderation
+## 8. Review Moderation & Management
 
-### 8.1 Moderate Customer Review (Approve / Hide / Delete)
+### 8.1 Get All Customer Reviews (with Filters & Details)
+- **Route**: `GET {{baseUrl}}/review/get-all-reviews`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>` *(or User Bearer Token)*
+- **Query Filters**: `page=1`, `limit=10`, `businessId=6a7965d5f792519d4eada806` *(optional)*, `rating=5` *(optional)*, `searchTerm=coffee` *(optional)*
+- **Description**: Returns customer reviews across all businesses (or filtered by business/rating) with populated user profile info, business name/logo, rating score, comment, and helpful counts.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Reviews retrieved",
+  "data": {
+    "meta": { "page": 1, "limit": 10, "total": 1, "totalPage": 1 },
+    "result": [
+      {
+        "_id": "6a7965d5f792519d4eada80d",
+        "reviewId": "6a7965d5f792519d4eada80d",
+        "rating": 5,
+        "review": "Best coffee in Mogadishu!",
+        "comment": "Best coffee in Mogadishu!",
+        "helpfulCount": 12,
+        "isHelpful": false,
+        "moderationStatus": "visible",
+        "createdAt": "2026-08-15T00:00:00.000Z",
+        "user": {
+          "_id": "6a7965d4f792519d4eada800",
+          "name": "Ahmed Hassan",
+          "profile_image": "https://cdn.somspot.so/profiles/ahmed.png",
+          "email": "ahmed@example.com"
+        },
+        "business": {
+          "_id": "6a7965d5f792519d4eada806",
+          "name": "Banaadir Coffee House",
+          "logo": "https://cdn.somspot.so/businesses/banaadir_logo.png",
+          "address": "Liido Beach Road, Mogadishu",
+          "ratingAvg": 4.8,
+          "category": {
+            "name": "Cafes & Coffee",
+            "slug": "cafes-coffee"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 8.2 Get Single Review Details
+- **Route**: `GET {{baseUrl}}/review/get-review` OR `GET {{baseUrl}}/review/details` OR `GET {{baseUrl}}/review/admin/details`
+- **Auth**: Bearer `<ADMIN_JWT_TOKEN>` *(or User Bearer Token)*
+- **Query Filters**: `reviewId=6a7965d5f792519d4eada80d`
+- **Description**: Returns complete details of a specific review including user info, business info, rating score, comment, helpful status, and timestamps.
+- **Success Response (`200 OK`)**:
+```json
+{
+  "statusCode": 200,
+  "success": true,
+  "message": "Review retrieved",
+  "data": {
+    "_id": "6a7965d5f792519d4eada80d",
+    "reviewId": "6a7965d5f792519d4eada80d",
+    "rating": 5,
+    "review": "Best coffee in Mogadishu!",
+    "comment": "Best coffee in Mogadishu!",
+    "helpfulCount": 12,
+    "isHelpful": false,
+    "moderationStatus": "visible",
+    "createdAt": "2026-08-15T00:00:00.000Z",
+    "updatedAt": "2026-08-15T00:00:00.000Z",
+    "user": {
+      "_id": "6a7965d4f792519d4eada800",
+      "name": "Ahmed Hassan",
+      "profile_image": "https://cdn.somspot.so/profiles/ahmed.png",
+      "email": "ahmed@example.com"
+    },
+    "business": {
+      "_id": "6a7965d5f792519d4eada806",
+      "name": "Banaadir Coffee House",
+      "logo": "https://cdn.somspot.so/businesses/banaadir_logo.png",
+      "address": "Liido Beach Road, Mogadishu",
+      "ratingAvg": 4.8,
+      "ratingCount": 24,
+      "category": {
+        "name": "Cafes & Coffee",
+        "slug": "cafes-coffee"
+      }
+    }
+  }
+}
+```
+
+---
+
+### 8.3 Moderate Customer Review (Approve / Hide / Delete)
 - **Route**: `PATCH {{baseUrl}}/review/admin/moderate`
 - **Auth**: Bearer `<ADMIN_JWT_TOKEN>`
 - **Headers**: `Content-Type: application/json`

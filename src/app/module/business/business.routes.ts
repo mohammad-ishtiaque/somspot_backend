@@ -15,6 +15,9 @@ router
   // admin
   .patch("/verify", auth(config.auth_level.admin), BusinessController.verifyBusiness)
   .get("/admin/list", auth(config.auth_level.admin), BusinessController.adminGetAll)
+  .get("/admin/details", auth(config.auth_level.admin), BusinessController.adminGetBusinessDetails)
+  .get("/admin/get", auth(config.auth_level.admin), BusinessController.adminGetBusinessDetails)
+  .get("/get-detail", auth([], false), BusinessController.adminGetBusinessDetails)
   // public / consumer (auth optional so owners can preview unapproved)
   .get("/get-all", BusinessController.getAllBusinesses)
   .get("/trending", BusinessController.getTrending)

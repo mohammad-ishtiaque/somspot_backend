@@ -285,6 +285,25 @@ const assignCreator = async (payload: { campaignId?: string; creatorUserId?: str
   return application;
 };
 
+// Counterpart to assignCreator — undo an assignment while the campaign is
+// still pending review (Figma: "Remove" on an assigned influencer row).
+// Once live/rejected/etc the roster is locked; use campaign/update or
+// admin/review for anything past that point.
+const removeCreator = async (payload: { applicationId?: string }) => {
+  validateFields(payload, ["applicationId"]);
+  const application = await CampaignApplication.findById(payload.applicationId);
+  if (!application) throw new ApiError(status.NOT_FOUND, "Assignment not found");
+
+  const campaign = await Campaign.findById(application.campaign);
+  if (!campaign) throw new ApiError(status.NOT_FOUND, "Campaign not found");
+  if (campaign.status !== EnumCampaignStatus.PENDING_REVIEW)
+    throw new ApiError(status.BAD_REQUEST, "Creators can only be removed while the campaign is pending review");
+
+  await application.deleteOne();
+  await Campaign.updateOne({ _id: campaign._id }, { $inc: { approvedCount: -1 } });
+  return { removed: true };
+};
+
 // Admin "Merchant Campaigns" list (Figma: Offers & Promotions > Merchant
 // Campaigns). `status` here is the *derived* display status (pending_approval
 // / influencers_assigned / approved / active / rejected / paused / completed),
@@ -509,6 +528,7 @@ const CampaignService = {
   deleteCampaign,
   reviewCampaign,
   assignCreator,
+  removeCreator,
   adminGetAll,
   getApplications,
   getApplication,

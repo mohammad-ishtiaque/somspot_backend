@@ -42,6 +42,12 @@ const assignCreator = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, { statusCode: 201, success: true, message: "Creator assigned", data: result });
 });
 
+const removeCreator = catchAsync(async (req: Request, res: Response) => {
+  const applicationId = (req.query.applicationId as string) || req.body?.applicationId;
+  const result = await CampaignService.removeCreator({ applicationId });
+  sendResponse(res, { statusCode: 200, success: true, message: "Creator removed", data: result });
+});
+
 const adminGetAll = catchAsync(async (req: Request, res: Response) => {
   const result = await CampaignService.adminGetAll(req.query as QueryParams);
   sendResponse(res, { statusCode: 200, success: true, message: "Campaigns retrieved", data: result });
@@ -75,6 +81,7 @@ const CampaignController = {
   deleteCampaign,
   reviewCampaign,
   assignCreator,
+  removeCreator,
   adminGetAll,
   getApplications,
   getApplication,

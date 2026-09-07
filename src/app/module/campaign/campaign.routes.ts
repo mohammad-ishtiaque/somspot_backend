@@ -18,6 +18,7 @@ router
   // ---- admin ----
   .get("/admin/list", auth(config.auth_level.admin), CampaignController.adminGetAll)
   .patch("/admin/review", auth(config.auth_level.admin), CampaignController.reviewCampaign)
-  .post("/admin/assign-creator", auth(config.auth_level.admin), CampaignController.assignCreator);
+  .post("/admin/assign-creator", auth(config.auth_level.admin), CampaignController.assignCreator)
+  .delete("/admin/remove-creator", auth(config.auth_level.admin), CampaignController.removeCreator);
 
 export = router;

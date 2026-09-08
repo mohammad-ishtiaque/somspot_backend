@@ -136,9 +136,19 @@ class QueryBuilder<T> {
   async countTotal(): Promise<PaginationMeta> {
     const totalQueries: Record<string, any> = { ...this.modelQuery.getFilter() };
 
-    // Remove $near for countDocuments compatibility in MongoDB
+    // $near isn't allowed in countDocuments()/aggregation $match. Swap it for
+    // an equivalent $geoWithin/$centerSphere filter (which is allowed) so the
+    // count still reflects the same radius applied to the actual results,
+    // instead of silently counting as if no distance filter were applied.
     if (totalQueries.location?.$near) {
-      delete totalQueries.location;
+      const { $geometry, $maxDistance } = totalQueries.location.$near;
+      const [lng, lat] = $geometry.coordinates;
+      const EARTH_RADIUS_METERS = 6371000;
+      totalQueries.location = {
+        $geoWithin: {
+          $centerSphere: [[lng, lat], $maxDistance / EARTH_RADIUS_METERS],
+        },
+      };
     }
 
     const total = await (this.modelQuery.model as Model<T>).countDocuments(

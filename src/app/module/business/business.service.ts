@@ -141,16 +141,31 @@ const formatDistanceLabel = (distanceKm: number): string => {
 };
 
 // Public discovery: approved businesses only. Supports search, category filter,
-// and geo "nearby" when lat/lng provided or user profile location available.
+// and geo "nearby" when lat/lng are provided explicitly, or via ?nearby=true
+// falling back to the user's saved profile location.
 const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) => {
+  // category/isSaved are consumed manually below to build `base` — they must
+  // NOT also reach QueryBuilder.filter(), which would re-add them as raw
+  // Mongo conditions. `isSaved` isn't a Business schema field at all, so
+  // that would silently zero out every result (see saved.service.ts's
+  // `type` param for the same bug class).
+  const { category: categoryFilter, isSaved: isSavedFilter, nearby, ...listQuery } = query;
   const base: Record<string, unknown> = { status: EnumBusinessStatus.APPROVED };
 
-  if (query.category) base.category = query.category;
+  if (categoryFilter) base.category = categoryFilter;
 
-  let cLat = query.lat ?? query.latitude ? Number(query.lat ?? query.latitude) : NaN;
-  let cLng = query.lng ?? query.longitude ? Number(query.lng ?? query.longitude) : NaN;
+  const explicitLat = query.lat ?? query.latitude;
+  const explicitLng = query.lng ?? query.longitude;
+  let cLat = explicitLat != null ? Number(explicitLat) : NaN;
+  let cLng = explicitLng != null ? Number(explicitLng) : NaN;
 
-  if ((isNaN(cLat) || isNaN(cLng)) && userData?.userId) {
+  // Falling back to the user's saved profile location is opt-in (?nearby=true).
+  // Otherwise a plain "get all" would silently shrink to a 10km radius around
+  // whatever address happens to be on the profile, which can zero out an
+  // otherwise-correct listing for a user who's just browsing, not asking "near me".
+  const wantsNearbyFallback = String(nearby).toLowerCase() === "true";
+
+  if ((isNaN(cLat) || isNaN(cLng)) && wantsNearbyFallback && userData?.userId) {
     const userDoc = await User.findById(userData.userId).select("locationCoordinates").lean();
     const coords = (userDoc as any)?.locationCoordinates?.coordinates;
     if (Array.isArray(coords) && coords.length === 2) {
@@ -174,19 +189,19 @@ const getAllBusinesses = async (query: QueryParams, userData?: AuthUserPayload) 
     const savedDocs = await Saved.find({ user: userData.userId, business: { $exists: true, $ne: null } }).select("business").lean();
     savedBusinessIds = new Set(savedDocs.map(d => String(d.business)));
     
-    if (String(query.isSaved) === "true") {
+    if (String(isSavedFilter) === "true") {
       if (savedDocs.length === 0) {
         return { meta: { page: 1, limit: 10, total: 0, totalPage: 0 }, result: [] };
       }
       base._id = { $in: Array.from(savedBusinessIds) };
     }
-  } else if (String(query.isSaved) === "true") {
+  } else if (String(isSavedFilter) === "true") {
     throw new ApiError(status.UNAUTHORIZED, "Login required to view saved businesses");
   }
 
   const { meta, result } = await new QueryBuilder(
     Business.find(base).populate([{ path: "category", select: "name slug icon" }]).lean(),
-    query,
+    listQuery,
   ).execute(["name", "description", "address"]);
 
   const enrichedResult = result.map((b: any) => {

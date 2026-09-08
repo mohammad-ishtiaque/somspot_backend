@@ -41,7 +41,12 @@ const toggleSaved = async (
 };
 
 const getAllSaved = async (userData: AuthUserPayload, query: QueryParams) => {
-  const type = query.type ? String(query.type).toLowerCase() : "all";
+  // `type` is consumed manually here to build `filter` — it must not also
+  // reach QueryBuilder.filter(), which would re-add it as a raw Mongo
+  // condition. Saved has no `type` field, so that silently zeroed out every
+  // result whenever `?type=business` or `?type=offer` was passed.
+  const { type: rawType, ...listQuery } = query;
+  const type = rawType ? String(rawType).toLowerCase() : "all";
   const filter: Record<string, unknown> = { user: userData.userId };
 
   if (type === "offer") {
@@ -62,8 +67,8 @@ const getAllSaved = async (userData: AuthUserPayload, query: QueryParams) => {
         },
       ])
       .lean(),
-    query,
-  ).execute(["type"]);
+    listQuery,
+  ).execute([]);
 
   return { meta, result };
 };
